@@ -1,0 +1,1490 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta name="referrer" content="no-referrer">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>부캉이를 찾아서 (Finding Bukang-i) - 부산 북항 1인칭 야경 해중 수색 RPG</title>
+    <link rel="stylesheet" href="vendor/tailwind.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800;900&display=swap');
+        
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #020617;
+            color: #f8fafc;
+        }
+
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            cursor: grab;
+        }
+
+        canvas:active {
+            cursor: grabbing;
+        }
+
+        /* Glassmorphism UI Panels */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.75), inset 0 0 15px rgba(56, 189, 248, 0.15);
+        }
+
+        .glass-btn {
+            background: linear-gradient(135deg, rgba(14, 165, 233, 0.6), rgba(3, 105, 161, 0.85));
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(125, 211, 252, 0.7);
+            box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.85), rgba(14, 165, 233, 1));
+            box-shadow: 0 6px 22px rgba(56, 189, 248, 0.7);
+            transform: translateY(-2px);
+        }
+
+        .glass-btn:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: #0284c7;
+            border-radius: 4px;
+        }
+    </style>
+<style>.hidden { display: none !important; }</style>
+<script src="eco-feedback.js"></script>
+<style id="final-layout">#radarCanvas{width:112px;height:112px;cursor:default}</style></head>
+<body class="relative min-h-screen w-full overflow-hidden select-none">
+
+    <!-- Canvas Viewport for 3D First-Person Cockpit Camera Drag & Night Ocean -->
+    <canvas id="gameCanvas" class="absolute inset-0 z-0"></canvas>
+
+    <!-- INK SPLATTER OVERLAY (BOSS ATTACK) -->
+    <div id="inkOverlay" class="pointer-events-none absolute inset-0 z-30 transition-opacity duration-300 opacity-0">
+        <div class="absolute top-[15%] left-[20%] w-72 h-72 bg-slate-950 rounded-full mix-blend-multiply filter blur-2xl"></div>
+        <div class="absolute top-[45%] left-[48%] w-[28rem] h-[28rem] bg-black rounded-full mix-blend-multiply filter blur-3xl transform -translate-x-1/2 -translate-y-1/2"></div>
+        <div class="absolute bottom-[20%] right-[25%] w-80 h-80 bg-slate-900 rounded-full mix-blend-multiply filter blur-2xl"></div>
+    </div>
+
+    <!-- Guided Shell Control Crosshair Overlay -->
+    <div id="guidedCrosshair" class="hidden absolute pointer-events-none z-20 flex flex-col items-center transform -translate-x-1/2 -translate-y-1/2">
+        <div class="w-12 h-12 border-2 border-amber-400 rounded-full flex items-center justify-center animate-spin shadow-[0_0_20px_rgba(251,191,36,0.8)]">
+            <div class="w-3 h-3 bg-amber-300 rounded-full"></div>
+        </div>
+        <span class="text-[11px] font-extrabold text-amber-300 bg-slate-900/90 px-2 py-0.5 rounded mt-1 shadow border border-amber-400/60">🚀 포탄 궤적 실시간 조종 중!</span>
+    </div>
+
+    <!-- Cockpit View Frame & UI -->
+    <div id="cockpitFrame" class="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between p-2 sm:p-4 border-[12px] sm:border-[18px] border-slate-900/90 rounded-3xl">
+        
+        <!-- Top HUD Navigation -->
+        <div class="flex items-center justify-between w-full pointer-events-auto gap-2">
+            <!-- Stage Status -->
+            <div class="glass-panel rounded-2xl px-4 py-2 flex items-center gap-3">
+                <div class="w-3.5 h-3.5 rounded-full bg-cyan-400 animate-ping"></div>
+                <div>
+                    <div id="stageTitle" class="text-[11px] sm:text-xs font-semibold text-cyan-300 tracking-wider">STAGE 1: 친수공원 수로</div>
+                    <div id="stageDesc" class="text-xs sm:text-sm font-extrabold text-white">수면 밀착 기름 찌꺼기 수거 중</div>
+                </div>
+            </div>
+
+            <!-- Eco Cleanliness Progress Bar -->
+            <div class="glass-panel rounded-2xl px-4 py-2 w-44 sm:w-64">
+                <div class="flex justify-between text-xs font-bold mb-1">
+                    <span class="text-emerald-400">북항 해양 정화율</span>
+                    <span id="cleanProgressText" class="text-emerald-300">0%</span>
+                </div>
+                <div class="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-700">
+                    <div id="cleanProgressBar" class="h-full bg-gradient-to-r from-teal-500 via-cyan-400 to-emerald-400 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Sound & Shop Buttons -->
+            <div class="flex items-center gap-2">
+                <button id="soundToggleBtn" onclick="toggleAudio()" class="glass-btn p-2.5 rounded-xl text-white font-bold flex items-center justify-center">
+                    🔊
+                </button>
+                <button id="shopOpenBtn" onclick="openShop()" class="glass-btn px-4 py-2.5 rounded-xl text-amber-300 font-extrabold flex items-center gap-2 text-xs sm:text-sm">
+                    🛒 강화 상점 <span class="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded border border-amber-400/40">[E]</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Guided Shell Control HUD Notification -->
+        <div id="shellControlGuide" class="hidden absolute top-20 left-1/2 transform -translate-x-1/2 pointer-events-none glass-panel px-4 py-1.5 rounded-full border border-amber-400/70 text-amber-300 font-extrabold text-xs animate-pulse">
+            🚀 마우스/터치를 움직여 날아가는 포탄의 궤적을 직접 조종하세요!
+        </div>
+
+        <!-- Center Crosshair Sight -->
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+            <div id="crosshairUI" class="w-16 h-16 border-2 border-cyan-400/70 rounded-full flex items-center justify-center relative shadow-[0_0_15px_rgba(56,189,248,0.5)]">
+                <div class="w-2 h-2 bg-cyan-300 rounded-full"></div>
+                <div class="absolute -top-3 w-0.5 h-3 bg-cyan-400"></div>
+                <div class="absolute -bottom-3 w-0.5 h-3 bg-cyan-400"></div>
+                <div class="absolute -left-3 h-0.5 w-3 bg-cyan-400"></div>
+                <div class="absolute -right-3 h-0.5 w-3 bg-cyan-400"></div>
+            </div>
+        </div>
+
+        <!-- Bottom Dashboard Console Controls -->
+        <div class="w-full flex justify-between items-end gap-2 pointer-events-auto">
+            
+            <!-- Left Engine HUD & Keyboard Guidance -->
+            <div id="leftConsole" class="glass-panel p-3 rounded-2xl flex flex-col gap-2 min-w-[130px]">
+                <div class="text-[10px] text-cyan-400 font-bold uppercase tracking-widest">DRIVE COMMAND</div>
+                <div class="flex items-center gap-3">
+                    <div>
+                        <div class="text-[10px] text-slate-400">속도 (SPEED)</div>
+                        <div id="speedometer" class="text-xl font-black text-cyan-300">0 KN</div>
+                    </div>
+                </div>
+                <!-- Keyboard WASD Keys -->
+                <div id="wasdControls" class="grid grid-cols-3 gap-1 w-24 text-center text-xs font-bold text-slate-300 mt-1">
+                    <div></div>
+                    <div id="keyW" class="p-1 rounded bg-slate-800 border border-slate-600">W</div>
+                    <div></div>
+                    <div id="keyA" class="p-1 rounded bg-slate-800 border border-slate-600">A</div>
+                    <div id="keyS" class="p-1 rounded bg-slate-800 border border-slate-600">S</div>
+                    <div id="keyD" class="p-1 rounded bg-slate-800 border border-slate-600">D</div>
+                </div>
+            </div>
+
+            <!-- Middle Console: Fire & Cargo -->
+            <div id="midConsole" class="glass-panel p-3 sm:p-4 rounded-2xl flex items-center gap-4 sm:gap-6 max-w-md w-full justify-around">
+                <!-- Cargo Storage -->
+                <div id="cargoConsole" class="flex flex-col items-center">
+                    <div class="text-[10px] sm:text-[11px] font-extrabold text-amber-400 mb-0.5">기름 적재함 (CARGO)</div>
+                    <div class="text-base sm:text-lg font-black text-amber-300"><span id="cargoVal">0</span> / <span id="cargoMax">100</span> L</div>
+                    <button id="dumpCargoBtn" onclick="emptyCargo()" class="mt-1 text-[10px] bg-amber-600/80 hover:bg-amber-500 text-amber-100 font-bold px-2.5 py-1 rounded-lg transition shadow">정화조 배출 (+골드)</button>
+                </div>
+
+                <!-- Main Cannon Fire Button -->
+                <div class="flex flex-col items-center">
+                    <button id="fireBtn" onclick="fireCannon()" class="glass-btn w-16 h-16 sm:w-20 sm:h-20 rounded-full flex flex-col items-center justify-center border-2 border-cyan-300/80 shadow-lg active:scale-95">
+                        <span class="text-[10px] sm:text-xs font-bold text-cyan-200">방제포탄</span>
+                        <span class="text-base sm:text-lg font-black text-white">발사</span>
+                        <span class="text-[9px] text-cyan-300">[SPACE/클릭]</span>
+                    </button>
+                </div>
+
+                <!-- Gold & Weapon Info -->
+                <div class="flex flex-col items-center">
+                    <div class="text-[10px] sm:text-[11px] font-extrabold text-yellow-400 mb-0.5">보유 골드</div>
+                    <div class="text-lg sm:text-xl font-black text-yellow-300">🪙 <span id="goldVal">200</span></div>
+                    <div class="text-[10px] text-cyan-300 mt-1 font-semibold">장착 무기: <span id="weaponNameVal">기본 포탄</span></div>
+                </div>
+            </div>
+
+            <!-- Right Console: Radar Display -->
+            <div id="rightConsole" class="glass-panel p-3 rounded-2xl flex flex-col items-center relative">
+                <div class="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mb-1">SONAR RADAR</div>
+                <div id="radarContainer" class="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-slate-950 border-2 border-emerald-500/50 overflow-hidden shadow-inner flex items-center justify-center">
+                    <div class="absolute inset-0 border border-emerald-500/20 rounded-full"></div>
+                    <div class="absolute inset-0 border-[18px] border-emerald-500/10 rounded-full"></div>
+                    <div class="absolute w-full h-[1px] bg-emerald-500/30"></div>
+                    <div class="absolute h-full w-[1px] bg-emerald-500/30"></div>
+                    <div class="absolute inset-0 rounded-full origin-center animate-[spin_4s_linear_infinite]" style="background: conic-gradient(from 0deg, transparent 0deg, transparent 270deg, rgba(16, 185, 129, 0.4) 360deg);"></div>
+                    <canvas id="radarCanvas" width="112" height="112" class="absolute inset-0 z-10"></canvas>
+                </div>
+                <div class="text-[10px] text-emerald-300 mt-1 font-bold">부캉이 신호: <span id="bukangiDist">---</span>m</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- START MODAL & TOOL SELECTOR -->
+    <div id="startModal" class="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-2xl rounded-3xl p-6 sm:p-8 border-2 border-cyan-400/70 shadow-2xl flex flex-col items-center text-center">
+            <!-- Bukangi Character Preview Graphic -->
+            <div class="relative w-20 h-20 mb-3 flex items-center justify-center bg-cyan-950/80 rounded-full border-2 border-cyan-300 shadow-[0_0_20px_rgba(56,189,248,0.5)]">
+                <div class="text-4xl animate-bounce">🦈</div>
+                <span class="absolute -top-1 -right-1 text-xs bg-amber-400 text-slate-950 font-black px-1.5 py-0.5 rounded-full shadow">🕶️ 세일러</span>
+            </div>
+
+            <h1 class="text-2xl sm:text-3xl font-black text-cyan-300 mb-2">부캉이를 찾아서 (Finding Bukang-i)</h1>
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-lg mb-6">
+                아름다운 무지개빛 <strong>부산항대교 야경 바다</strong>가 기름 유출 사고로 위기에 처했습니다!<br>
+                1인칭 시점에서 밤바다 깊은 곳을 헤엄치는 파란 아기 상어 <strong>'부캉이'</strong>를 수색하고 오염된 북항을 정화하세요!
+            </p>
+
+            <!-- Guide Box -->
+            <div class="grid grid-cols-3 gap-2 w-full max-w-md bg-slate-900/90 p-3 rounded-2xl border border-slate-700 text-xs font-bold mb-6">
+                <div class="flex flex-col items-center">
+                    <span class="text-cyan-400 mb-1">드래그 (Mouse/Touch)</span>
+                    <span class="text-slate-300">자유 시점 회전</span>
+                </div>
+                <div class="flex flex-col items-center">
+                    <span class="text-amber-400 mb-1">클릭 & 궤적 조종</span>
+                    <span class="text-slate-300">포탄 실시간 유도</span>
+                </div>
+                <div class="flex flex-col items-center">
+                    <span class="text-cyan-400 mb-1">WASD / 방향키</span>
+                    <span class="text-slate-300">방제선 이동</span>
+                </div>
+            </div>
+
+            <h3 class="text-sm font-extrabold text-amber-400 mb-3 uppercase tracking-wider">초기 주력 방제 도구를 선택하세요</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full mb-2">
+                <button onclick="selectInitialTool('shell')" class="glass-btn p-3 rounded-2xl text-left border border-cyan-400/50 hover:scale-105 transition">
+                    <div class="text-base mb-1 font-bold text-cyan-200">🎯 조종형 회수 캡슐</div>
+                    <div class="text-[11px] text-slate-300 font-semibold">발사 후 궤적을 수동 조종하여 기름 정밀 타격</div>
+                </button>
+                <button onclick="selectInitialTool('net')" class="glass-btn p-3 rounded-2xl text-left border border-cyan-400/50 hover:scale-105 transition">
+                    <div class="text-base mb-1 font-bold text-cyan-200">🕸️ 견인 정화 그물</div>
+                    <div class="text-[11px] text-slate-300 font-semibold">넓은 범위의 수면 기름을 한꺼번에 쓸어담음</div>
+                </button>
+                <button onclick="selectInitialTool('suction')" class="glass-btn p-3 rounded-2xl text-left border border-cyan-400/50 hover:scale-105 transition">
+                    <div class="text-base mb-1 font-bold text-cyan-200">🌀 고압 흡착기</div>
+                    <div class="text-[11px] text-slate-300 font-semibold">원거리 기름 덩어리를 강력하게 흡입</div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SHOP MODAL -->
+    <div id="shopModal" class="hidden absolute inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 pointer-events-auto">
+        <div class="glass-panel w-full max-w-3xl rounded-3xl p-6 border-2 border-cyan-400/50 flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center pb-4 border-b border-slate-700">
+                <div>
+                    <h2 class="text-xl sm:text-2xl font-black text-amber-400 flex items-center gap-2">🛒 해양 방제 장비 전문 강화 상점</h2>
+                    <p class="text-xs text-slate-400">수거한 기름을 환전하여 방제선 스펙과 무기를 업그레이드하세요!</p>
+                </div>
+                <button onclick="closeShop()" class="w-10 h-10 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xl flex items-center justify-center">✕</button>
+            </div>
+
+            <div id="shopItemList" class="grid grid-cols-1 md:grid-cols-2 gap-4 my-4 overflow-y-auto custom-scroll pr-1 flex-1">
+                <!-- Dynamic Items -->
+            </div>
+
+            <div class="pt-3 border-t border-slate-700 flex justify-between items-center">
+                <div class="text-sm font-bold text-yellow-400">보유 골드: 🪙 <span id="shopGoldVal">200</span> G</div>
+                <button onclick="closeShop()" class="glass-btn px-6 py-2.5 rounded-xl font-bold text-white text-sm">조종석 복귀 [E]</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- EDUCATIONAL & EVENT POPUP -->
+    <div id="bukangiPopup" class="hidden absolute top-12 left-1/2 transform -translate-x-1/2 z-50 max-w-md w-11/12 glass-panel p-4 rounded-2xl border-2 border-cyan-400 flex items-center gap-4 animate-bounce pointer-events-auto shadow-2xl">
+        <div class="w-14 h-14 rounded-full bg-cyan-950 border border-cyan-300 flex-shrink-0 flex items-center justify-center text-3xl shadow-inner">
+            🦈
+        </div>
+        <div>
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-black text-cyan-300 uppercase">해양 환경 보전 메시지</span>
+                <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-200 font-bold">부캉이의 한마디</span>
+            </div>
+            <p id="bukangiMsg" class="text-xs font-bold text-white mt-1 leading-snug">오일펜스는 바다 위 기름의 확산을 막는 1차 차단막 역할을 해줘요!</p>
+        </div>
+    </div>
+
+    <!-- VICTORY OVERLAY -->
+    <div id="victoryOverlay" class="hidden absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-lg flex flex-col items-center justify-center p-6 text-center pointer-events-auto">
+        <div class="glass-panel p-8 rounded-3xl border-4 border-cyan-400 max-w-lg w-full flex flex-col items-center shadow-[0_0_50px_rgba(56,189,248,0.4)]">
+            <div class="text-6xl mb-2 animate-bounce">🦈✨</div>
+            <h1 class="text-3xl font-black text-cyan-300 mb-1">부캉이 구출 및 바다 정화 성공!</h1>
+            <p class="text-base text-emerald-400 font-bold mb-4">부산 북항 바다가 맑고 푸르게 되살아났습니다!</p>
+            
+            <div class="bg-slate-900/90 p-4 rounded-xl text-xs text-slate-300 border border-slate-700 text-left mb-6 space-y-2 w-full">
+                <p>🔹 <strong>최종 미션 수행 결과:</strong> 거대 기름 괴물 보스 제압 완료</p>
+                <p>🔹 <strong>북항 야경 환경 정화:</strong> 게임 내 방제 목표 달성 (실제 생태 복원에는 지속 관찰 필요)</p>
+                <p>🔹 <strong>부캉이 메시지:</strong> "바다 속 깊은 곳까지 찾아와서 나를 찾아주고 바다를 구해주다니 정말 멋져! 찡긋~😎👋"</p>
+            </div>
+
+            <button onclick="restartGame()" class="glass-btn px-8 py-3.5 rounded-2xl text-lg font-black text-white shadow-xl hover:scale-105 transition">
+                새로운 방제 임무 시작하기 🚀
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /* -------------------------------------------------------------------------- */
+        /* GAME CONFIGURATION & STATE MANAGEMENT                                     */
+        /* -------------------------------------------------------------------------- */
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+
+        // 3D First-Person Cockpit Camera Drag
+        const camera = {
+            yaw: 0,      // Horizontal Rotation Angle (Radians)
+            pitch: 0,    // Vertical Tilt Angle (-0.35 to 0.35)
+            fov: 600
+        };
+
+        let isDragging = false;
+        let dragStartX = 0;
+        let dragStartY = 0;
+        let pointerPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+
+        const gameState = {
+            stage: 1, // 1: 친수공원 수로, 2: 북항 외해, 3: 심해 유조선 사고 현장 (Boss)
+            cleanliness: 0, // 0 to 100%
+            gold: 200,
+            cargo: 0,
+            maxCargo: 100,
+            fenceLevel: 0,
+            activeWeapon: 'shell',
+            netRadius: 14,
+            soundMuted: false,
+            bossActive: false,
+            bossHP: 1200,
+            maxBossHP: 1200,
+            victory: false,
+            bukangiRescued: false
+        };
+
+        // Active Guided Shell Trajectory Reference
+        let activeGuidedShell = null;
+
+        // Ship Controls & Coordinates
+        const ship = {
+            x: 0,
+            y: 0,
+            angle: 0,
+            speed: 0,
+            maxSpeed: 4.2,
+            accel: 0.1,
+            friction: 0.94,
+            turnSpeed: 0.038
+        };
+
+        const keys = { w: false, a: false, s: false, d: false, space: false };
+
+        // Bukangi Shark Character AI Position (Strictly Sub-Surface Underwater)
+        const bukangi = {
+            x: 280,
+            y: 380,
+            depth: 130, // Deep underwater depth
+            vx: 0.9,
+            vy: 0.6,
+            pulse: 0
+        };
+
+        // Entities
+        let oilSlicks = [];
+        let projectiles = [];
+        let particles = [];
+        let marineEntities = [];
+        let bossAttacks = [];
+        let inkTimer = 0;
+
+        // Upgrades Configuration
+        const shopUpgrades = [
+            { id: 'weapon', name: '특수 오일 싹쓸이 미사일', desc: '포탄 수거 범위 및 유도 속도 대폭 증가', level: 1, maxLevel: 5, basePrice: 100, priceMult: 1.8 },
+            { id: 'engine', name: '초고속 친환경 듀얼 엔진', desc: '방제선의 최고 속도 및 회전력 향상', level: 1, maxLevel: 5, basePrice: 120, priceMult: 1.6 },
+            { id: 'cargo', name: '대용량 오일 카고 탱크', desc: '기름 최대 적재 용량 증대', level: 1, maxLevel: 5, basePrice: 150, priceMult: 2.0 },
+            { id: 'radar', name: '부캉이 정밀 음파 탐지기', desc: '레이더 신호 감지 거리 및 정확도 강화', level: 1, maxLevel: 3, basePrice: 200, priceMult: 2.2 },
+            { id: 'fence', name: '고강도 오일펜스 차단막', desc: '기름 재확산 방지 및 수면 오염도 하락 억제', level: 1, maxLevel: 4, basePrice: 180, priceMult: 1.9 }
+        ];
+
+        /* -------------------------------------------------------------------------- */
+        /* WEB AUDIO SYNTHESIZER                                                      */
+        /* -------------------------------------------------------------------------- */
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playSound(type) {
+            if (gameState.soundMuted || !audioCtx) return;
+            try {
+                const now = audioCtx.currentTime;
+                if (type === 'fire') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(360, now);
+                    osc.frequency.exponentialRampToValueAtTime(50, now + 0.25);
+                    gain.gain.setValueAtTime(0.35, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else if (type === 'collect') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(600, now);
+                    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.15);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+                } else if (type === 'upgrade') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(440, now);
+                    osc.frequency.setValueAtTime(880, now + 0.12);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.35);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.35);
+                } else if (type === 'ink') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(150, now);
+                    osc.frequency.linearRampToValueAtTime(40, now + 0.3);
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        function toggleAudio() {
+            initAudio();
+            gameState.soundMuted = !gameState.soundMuted;
+            document.getElementById('soundToggleBtn').innerText = gameState.soundMuted ? '🔇' : '🔊';
+        }
+
+        /* -------------------------------------------------------------------------- */
+        /* INITIALIZATION & TOOL SELECTION                                            */
+        /* -------------------------------------------------------------------------- */
+        function init() {
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            setupInputListeners();
+            spawnOilSlicks(40);
+            initMarineLife();
+            renderShopItems();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function initMarineLife() {
+            for (let i = 0; i < 110; i++) {
+                const randType = Math.random();
+                let type = 'mackerel';
+                if (randType > 0.85) type = 'turtle';
+                else if (randType > 0.65) type = 'jellyfish';
+                else if (randType > 0.45) type = 'anchovy';
+
+                marineEntities.push({
+                    type: type,
+                    x: (Math.random() - 0.5) * 4000,
+                    y: (Math.random() - 0.5) * 4000,
+                    depth: 50 + Math.random() * 220,
+                    angle: Math.random() * Math.PI * 2,
+                    speed: 0.6 + Math.random() * 1.6,
+                    pulse: Math.random() * Math.PI * 2
+                });
+            }
+        }
+
+        function selectInitialTool(toolType) {
+            initAudio();
+            gameState.activeWeapon = toolType;
+            if (toolType === 'shell') {
+                gameState.netRadius = 14;
+                document.getElementById('weaponNameVal').innerText = '조종형 회수 캡슐';
+            } else if (toolType === 'net') {
+                gameState.netRadius = 24;
+                document.getElementById('weaponNameVal').innerText = '견인 정화 그물';
+            } else if (toolType === 'suction') {
+                gameState.netRadius = 18;
+                document.getElementById('weaponNameVal').innerText = '고압 흡착기';
+            }
+            document.getElementById('startModal').classList.add('hidden');
+            showBukangiTip("드래그로 1인칭 시점을 회전하고, 포탄 발사 후 손가락이나 마우스를 움직여 궤적을 자유롭게 유도해봐! 바다 속에서 기다릴게! 🦈✨");
+        }
+
+        function resizeCanvas() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+
+        function spawnOilSlicks(count) {
+            for (let i = 0; i < count; i++) {
+                const dist = 200 + Math.random() * 950;
+                const angle = Math.random() * Math.PI * 2;
+                oilSlicks.push({
+                    x: ship.x + Math.cos(angle) * dist,
+                    y: ship.y + Math.sin(angle) * dist,
+                    radius: 28 + Math.random() * 40
+                });
+            }
+        }
+
+        /* -------------------------------------------------------------------------- */
+        /* INPUT HANDLERS (GUIDED SHELL MECHANIC & CAMERA DRAG)                       */
+        /* -------------------------------------------------------------------------- */
+        function setupInputListeners() {
+            canvas.addEventListener('mousedown', (e) => {
+                if (e.target !== canvas) return;
+                isDragging = true;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                pointerPos.x = e.clientX;
+                pointerPos.y = e.clientY;
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                pointerPos.x = e.clientX;
+                pointerPos.y = e.clientY;
+
+                // 1. Guided Shell Control Logic
+                if (activeGuidedShell && activeGuidedShell.life > 0) {
+                    const targetAngle = ship.angle + camera.yaw + ((e.clientX - width / 2) / (width / 2)) * 0.85;
+                    activeGuidedShell.vx += (Math.cos(targetAngle) * 13 - activeGuidedShell.vx) * 0.18;
+                    activeGuidedShell.vy += (Math.sin(targetAngle) * 13 - activeGuidedShell.vy) * 0.18;
+                    
+                    const guidedUI = document.getElementById('guidedCrosshair');
+                    guidedUI.style.left = `${e.clientX}px`;
+                    guidedUI.style.top = `${e.clientY}px`;
+                    return;
+                }
+
+                // 2. First-Person View Drag Logic
+                if (!isDragging) return;
+                const dx = e.clientX - dragStartX;
+                const dy = e.clientY - dragStartY;
+                
+                camera.yaw -= dx * 0.0032;
+                camera.pitch = Math.max(-0.35, Math.min(0.35, camera.pitch + dy * 0.0022));
+
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+            });
+
+            window.addEventListener('mouseup', (e) => {
+                if (isDragging) {
+                    const dragDist = Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY);
+                    if (dragDist < 6) {
+                        initAudio();
+                        fireCannon();
+                    }
+                }
+                isDragging = false;
+            });
+
+            // Mobile Touch Controls
+            canvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    isDragging = true;
+                    dragStartX = e.touches[0].clientX;
+                    dragStartY = e.touches[0].clientY;
+                    pointerPos.x = e.touches[0].clientX;
+                    pointerPos.y = e.touches[0].clientY;
+                }
+            });
+
+            canvas.addEventListener('touchmove', (e) => {
+                if (e.touches.length !== 1) return;
+                pointerPos.x = e.touches[0].clientX;
+                pointerPos.y = e.touches[0].clientY;
+
+                if (activeGuidedShell && activeGuidedShell.life > 0) {
+                    const targetAngle = ship.angle + camera.yaw + ((pointerPos.x - width / 2) / (width / 2)) * 0.85;
+                    activeGuidedShell.vx += (Math.cos(targetAngle) * 13 - activeGuidedShell.vx) * 0.18;
+                    activeGuidedShell.vy += (Math.sin(targetAngle) * 13 - activeGuidedShell.vy) * 0.18;
+                    return;
+                }
+
+                if (!isDragging) return;
+                const dx = e.touches[0].clientX - dragStartX;
+                const dy = e.touches[0].clientY - dragStartY;
+
+                camera.yaw -= dx * 0.004;
+                camera.pitch = Math.max(-0.35, Math.min(0.35, camera.pitch + dy * 0.003));
+
+                dragStartX = e.touches[0].clientX;
+                dragStartY = e.touches[0].clientY;
+            });
+
+            canvas.addEventListener('touchend', () => { isDragging = false; });
+
+            // Keyboard Commands
+            window.addEventListener('keydown', (e) => {
+                const k = e.key.toLowerCase();
+                if (k === 'w' || k === 'arrowup') keys.w = true;
+                if (k === 'a' || k === 'arrowleft') keys.a = true;
+                if (k === 's' || k === 'arrowdown') keys.s = true;
+                if (k === 'd' || k === 'arrowright') keys.d = true;
+                if (k === 'e') {
+                    if (document.getElementById('shopModal').classList.contains('hidden')) openShop();
+                    else closeShop();
+                }
+                if (e.code === 'Space') {
+                    if (!keys.space) fireCannon();
+                    keys.space = true;
+                }
+            });
+
+            window.addEventListener('keyup', (e) => {
+                const k = e.key.toLowerCase();
+                if (k === 'w' || k === 'arrowup') keys.w = false;
+                if (k === 'a' || k === 'arrowleft') keys.a = false;
+                if (k === 's' || k === 'arrowdown') keys.s = false;
+                if (k === 'd' || k === 'arrowright') keys.d = false;
+                if (e.code === 'Space') keys.space = false;
+            });
+        }
+
+        /* -------------------------------------------------------------------------- */
+        /* GAME MECHANICS & GUIDED CANNON FIRING                                      */
+        /* -------------------------------------------------------------------------- */
+        function fireCannon() {
+            if (gameState.victory) return;
+            playSound('fire');
+            
+            const totalYaw = ship.angle + camera.yaw;
+            const shell = {
+                x: ship.x,
+                y: ship.y,
+                vx: Math.cos(totalYaw) * 14,
+                vy: Math.sin(totalYaw) * 14,
+                life: 85,
+                radius: gameState.netRadius * 2,
+                isGuided: true
+            };
+
+            projectiles.push(shell);
+            activeGuidedShell = shell;
+
+            document.getElementById('guidedCrosshair').classList.remove('hidden');
+            document.getElementById('shellControlGuide').classList.remove('hidden');
+
+            for (let i = 0; i < 10; i++) {
+                particles.push({
+                    x: width / 2 + (Math.random() - 0.5) * 60,
+                    y: height / 2 + 60,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: (Math.random() - 0.5) * 6 - 2,
+                    color: '#38bdf8',
+                    size: Math.random() * 4 + 2,
+                    life: 22
+                });
+            }
+        }
+
+        function emptyCargo() {
+            if (gameState.cargo <= 0) return;
+            const earned = Math.floor(gameState.cargo * 2.2);
+            gameState.gold += earned;
+            gameState.cargo = 0;
+            playSound('upgrade');
+            showBukangiTip(`기름 정화조 배출 완료! 🪙 ${earned} 골드를 획득하였습니다!`);
+            updateHUD();
+        }
+
+        /* -------------------------------------------------------------------------- */
+        /* SHOP & UPGRADES                                                            */
+        /* -------------------------------------------------------------------------- */
+        function renderShopItems() {
+            const listEl = document.getElementById('shopItemList');
+            listEl.innerHTML = '';
+
+            shopUpgrades.forEach(up => {
+                const cost = Math.floor(up.basePrice * Math.pow(up.priceMult, up.level - 1));
+                const isMax = up.level >= up.maxLevel;
+
+                const itemCard = document.createElement('div');
+                itemCard.className = "bg-slate-900/90 border border-slate-700 p-4 rounded-2xl flex flex-col justify-between";
+                itemCard.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-start mb-1">
+                            <h4 class="font-black text-cyan-300 text-sm">${up.name}</h4>
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-900 text-cyan-200 font-bold">Lv.${up.level} / ${up.maxLevel}</span>
+                        </div>
+                        <p class="text-xs text-slate-400 mb-3">${up.desc}</p>
+                    </div>
+                    <button onclick="buyUpgrade('${up.id}')" ${isMax || gameState.gold < cost ? 'disabled' : ''} 
+                        class="glass-btn py-2 rounded-xl text-xs font-bold text-white flex justify-center items-center gap-1 disabled:opacity-40 disabled:pointer-events-none">
+                        ${isMax ? '최고 레벨 달성' : `강화하기 (🪙 ${cost} G)`}
+                    </button>
+                `;
+                listEl.appendChild(itemCard);
+            });
+            document.getElementById('shopGoldVal').innerText = gameState.gold;
+        }
+
+        function buyUpgrade(id) {
+            const item = shopUpgrades.find(u => u.id === id);
+            if (!item) return;
+            const cost = Math.floor(item.basePrice * Math.pow(item.priceMult, item.level - 1));
+
+            if (gameState.gold >= cost && item.level < item.maxLevel) {
+                gameState.gold -= cost;
+                item.level++;
+                playSound('upgrade');
+
+                if (id === 'weapon') gameState.netRadius += 6;
+                if (id === 'engine') ship.maxSpeed += 0.9;
+                if (id === 'cargo') gameState.maxCargo += 80;
+                if (id === 'fence') gameState.fenceLevel++;
+
+                renderShopItems();
+                updateHUD();
+
+                // Educational Message Card Trigger
+                if (id === 'fence') {
+                    showBukangiTip("💡 [해양 방제 상식] 오일펜스는 바다 위 기름의 확산을 막는 가장 기본적인 1차 차단막입니다!");
+                } else if (id === 'weapon') {
+                    showBukangiTip("💡 [해양 방제 상식] 유화 분산제 포탄은 기름을 미세 입자로 분해하여 생태계 자연 정화를 촉진합니다!");
+                } else {
+                    showBukangiTip(`${item.name} Lv.${item.level} 강화 완료! 방제 능력이 대폭 향상되었습니다! 🚀`);
+                }
+            }
+        }
+
+        function openShop() {
+            initAudio();
+            renderShopItems();
+            document.getElementById('shopModal').classList.remove('hidden');
+        }
+
+        function closeShop() {
+            document.getElementById('shopModal').classList.add('hidden');
+        }
+
+        /* -------------------------------------------------------------------------- */
+        /* EDUCATIONAL POPUP MESSAGES                                                 */
+        /* -------------------------------------------------------------------------- */
+        const bukangiTips = [
+            "오일펜스는 해상 기름 유출 시 방제선이 치는 1차 확산 방지 차단막이에요!",
+            "유화 분산제는 기름 덩어리를 미세 입자로 쪼개 자연 분해를 돕는 약품입니다.",
+            "부산 북항 친수공원은 시민들이 바다 야경을 즐기는 소중한 해양 생태 공간이에요!",
+            "해양 오염을 빠르게 신고(119/122)하면 바다 친구들이 안전하게 보호받을 수 있어요!"
+        ];
+
+        function showBukangiTip(customMsg) {
+            const popup = document.getElementById('bukangiPopup');
+            const msgEl = document.getElementById('bukangiMsg');
+            msgEl.innerText = customMsg || bukangiTips[Math.floor(Math.random() * bukangiTips.length)];
+            
+            popup.classList.remove('hidden');
+            setTimeout(() => {
+                popup.classList.add('hidden');
+            }, 4500);
+        }
+
+        /* -------------------------------------------------------------------------- */
+        /* UPDATE & PHYSICS SIMULATION                                                */
+        /* -------------------------------------------------------------------------- */
+        function update() {
+            // Ship Engine Controls
+            if (keys.w) ship.speed = Math.min(ship.maxSpeed, ship.speed + ship.accel);
+            if (keys.s) ship.speed = Math.max(-ship.maxSpeed * 0.5, ship.speed - ship.accel);
+            if (keys.a) ship.angle -= ship.turnSpeed;
+            if (keys.d) ship.angle += ship.turnSpeed;
+
+            ship.speed *= ship.friction;
+            ship.x += Math.cos(ship.angle) * ship.speed;
+            ship.y += Math.sin(ship.angle) * ship.speed;
+
+            // Keyboard Highlight
+            document.getElementById('keyW').className = keys.w ? 'p-1 rounded bg-cyan-600 border border-cyan-300 text-white' : 'p-1 rounded bg-slate-800 border border-slate-600';
+            document.getElementById('keyA').className = keys.a ? 'p-1 rounded bg-cyan-600 border border-cyan-300 text-white' : 'p-1 rounded bg-slate-800 border border-slate-600';
+            document.getElementById('keyS').className = keys.s ? 'p-1 rounded bg-cyan-600 border border-cyan-300 text-white' : 'p-1 rounded bg-slate-800 border border-slate-600';
+            document.getElementById('keyD').className = keys.d ? 'p-1 rounded bg-cyan-600 border border-cyan-300 text-white' : 'p-1 rounded bg-slate-800 border border-slate-600';
+
+            // Bukangi Shark Swimming AI Logic (STRICTLY SUB-SURFACE UNDERWATER)
+            bukangi.pulse += 0.05;
+            bukangi.x += bukangi.vx;
+            bukangi.y += bukangi.vy;
+            if (Math.hypot(bukangi.x - ship.x, bukangi.y - ship.y) > 650) {
+                const a = Math.atan2(ship.y - bukangi.y, ship.x - bukangi.x);
+                bukangi.vx = Math.cos(a) * 1.2;
+                bukangi.vy = Math.sin(a) * 1.2;
+            }
+
+            // Marine Life Physics
+            marineEntities.forEach(m => {
+                m.x += Math.cos(m.angle) * m.speed;
+                m.y += Math.sin(m.angle) * m.speed;
+                m.pulse += 0.08;
+                if (Math.random() < 0.02) m.angle += (Math.random() - 0.5);
+                
+                if (Math.hypot(m.x - ship.x, m.y - ship.y) > 1500) {
+                    m.angle = Math.atan2(ship.y - m.y, ship.x - m.x);
+                }
+            });
+
+            // Projectiles Movement & Water Surface Oil Collision
+            let activeGuidedAlive = false;
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                const p = projectiles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+
+                if (p === activeGuidedShell && p.life > 0) activeGuidedAlive = true;
+
+                // Collision with Water Surface Oil Slicks
+                for (let j = oilSlicks.length - 1; j >= 0; j--) {
+                    const oil = oilSlicks[j];
+                    const d = Math.hypot(p.x - oil.x, p.y - oil.y);
+                    if (d < p.radius + oil.radius) {
+                        if (gameState.cargo >= gameState.maxCargo) {
+                            if (Math.random() < 0.05) showBukangiTip("⚠️ 적재함이 100% 가득 차서 기름을 수거할 수 없어! 정화조를 먼저 비워줘!");
+                            break; 
+                        }
+
+                        oil.radius -= 12;
+                        gameState.cleanliness = Math.min(100, gameState.cleanliness + 1.5);
+ EcoFX.notify("good","기름 회수 → 구역 정화 지표 +1.5. 적재함을 비워 수거를 이어가세요.");
+                        gameState.cargo = Math.min(gameState.maxCargo, gameState.cargo + 8);
+                        playSound('collect');
+
+                        for (let k = 0; k < 6; k++) {
+                            particles.push({
+                                x: width / 2 + (Math.random() - 0.5) * 100,
+                                y: height / 2 + (Math.random() - 0.5) * 100,
+                                vx: (Math.random() - 0.5) * 5,
+                                vy: (Math.random() - 0.5) * 5,
+                                color: '#0284c7',
+                                size: 4,
+                                life: 25
+                            });
+                        }
+
+                        if (oil.radius <= 8) oilSlicks.splice(j, 1);
+                        break;
+                    }
+                }
+
+                // Boss Collision Check
+                if (gameState.bossActive && gameState.bossHP > 0) {
+                    const totalYaw = ship.angle + camera.yaw;
+                    const bossDist = Math.hypot(p.x - (ship.x + Math.cos(totalYaw) * 320), p.y - (ship.y + Math.sin(totalYaw) * 320));
+                    if (bossDist < 130) {
+                        gameState.bossHP -= 45;
+                        p.life = 0;
+                        playSound('collect');
+                        if (gameState.bossHP <= 0) triggerVictory();
+                    }
+                }
+
+                if (p.life <= 0) projectiles.splice(i, 1);
+            }
+
+            // Boss Attack Logic
+            if (gameState.bossActive && gameState.bossHP > 0 && !gameState.victory) {
+                if (Math.random() < 0.038) {
+                    const totalYaw = ship.angle + camera.yaw;
+                    const bossX = ship.x + Math.cos(totalYaw) * 320;
+                    const bossY = ship.y + Math.sin(totalYaw) * 320;
+                    bossAttacks.push({
+                        x: bossX, y: bossY,
+                        vx: (ship.x - bossX) * 0.016 + (Math.random() - 0.5) * 4,
+                        vy: (ship.y - bossY) * 0.016 + (Math.random() - 0.5) * 4,
+                        life: 140
+                    });
+                }
+            }
+
+            // Boss Attacks Movement & Player Hit Check (Ink Splatter)
+            for(let i = bossAttacks.length - 1; i >= 0; i--) {
+                const ba = bossAttacks[i];
+                ba.x += ba.vx;
+                ba.y += ba.vy;
+                ba.life--;
+                
+                const distToShip = Math.hypot(ba.x - ship.x, ba.y - ship.y);
+                if (distToShip < 55 && ba.life < 130) {
+                    inkTimer = 90;
+                    playSound('ink');
+                    document.getElementById('inkOverlay').style.opacity = '1';
+                    bossAttacks.splice(i, 1);
+                    continue;
+                }
+                if (ba.life <= 0) bossAttacks.splice(i, 1);
+            }
+
+            if (inkTimer > 0) {
+                inkTimer--;
+                if (inkTimer <= 0) document.getElementById('inkOverlay').style.opacity = '0';
+            }
+
+            // Dynamic Oil Respawn & Cleanliness Decay
+            if (gameState.cleanliness < 100 && !gameState.victory) {
+                const leakRate = 0.028 * Math.max(0.1, 1 - (gameState.fenceLevel * 0.22));
+                gameState.cleanliness = Math.max(0, gameState.cleanliness - leakRate);
+                if (Math.random() < 0.02 && oilSlicks.length < 50) {
+                    spawnOilSlicks(1);
+                }
+            }
+
+            // Reset Guided Crosshair UI
+            if (!activeGuidedAlive) {
+                activeGuidedShell = null;
+                document.getElementById('guidedCrosshair').classList.add('hidden');
+                document.getElementById('shellControlGuide').classList.add('hidden');
+            }
+
+            if (oilSlicks.length < 18) spawnOilSlicks(12);
+
+            // Stages Progression
+            if (gameState.cleanliness >= 40 && gameState.stage === 1) {
+                gameState.stage = 2;
+                document.getElementById('stageTitle').innerText = 'STAGE 2: 북항 외해 수역';
+                document.getElementById('stageDesc').innerText = '심해 유조선 유출 기름 2차 정화';
+                showBukangiTip("Stage 2 외해로 진입 중이야! 음파 레이더 신호에 집중해줘!");
+            } else if (gameState.cleanliness >= 80 && gameState.stage === 2 && !gameState.bossActive) {
+                gameState.stage = 3;
+                gameState.bossActive = true;
+                document.getElementById('stageTitle').innerText = 'STAGE 3: 심해 유조선 사고 현장';
+                document.getElementById('stageDesc').innerText = '⚠️ 거대 기름 괴물 보스 출현! 포탄 전면 발사!';
+                showBukangiTip("⚠️ 경보! 거대 기름 괴물 보스가 나타났어! 포탄을 조종해 보스를 사격해줘!");
+            }
+
+            // Particle Physics
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const pt = particles[i];
+                pt.x += pt.vx;
+                pt.y += pt.vy;
+                pt.life--;
+                if (pt.life <= 0) particles.splice(i, 1);
+            }
+
+            updateHUD();
+        }
+
+        function triggerVictory() {
+ EcoFX.notify("win","방제 임무 완료. 다른 도구로 수거 경로와 적재 전략을 비교해보세요.");
+            gameState.victory = true;
+            gameState.bossActive = false;
+            gameState.bukangiRescued = true;
+            document.getElementById('victoryOverlay').classList.remove('hidden');
+            playSound('upgrade');
+        }
+
+        function restartGame() {
+            location.reload();
+        }
+
+        function updateHUD() {
+            document.getElementById('speedometer').innerText = `${Math.abs(Math.round(ship.speed * 8))} KN`;
+            document.getElementById('cleanProgressText').innerText = `${Math.floor(gameState.cleanliness)}%`;
+            document.getElementById('cleanProgressBar').style.width = `${gameState.cleanliness}%`;
+            document.getElementById('cargoVal').innerText = gameState.cargo;
+            document.getElementById('cargoMax').innerText = gameState.maxCargo;
+            document.getElementById('goldVal').innerText = gameState.gold;
+
+            const dBukangi = Math.round(Math.hypot(bukangi.x - ship.x, bukangi.y - ship.y) / 10);
+            document.getElementById('bukangiDist').innerText = dBukangi;
+
+            drawRadar();
+        }
+
+        /* -------------------------------------------------------------------------- */
+        /* SONAR RADAR RENDERING                                                      */
+        /* -------------------------------------------------------------------------- */
+        function drawRadar() {
+            const rCanvas = document.getElementById('radarCanvas');
+            const rCtx = rCanvas.getContext('2d');
+            const cx = rCanvas.width / 2;
+            const cy = rCanvas.height / 2;
+            const scale = 0.12;
+
+            rCtx.clearRect(0, 0, rCanvas.width, rCanvas.height);
+
+            // Oil Blips
+            rCtx.fillStyle = 'rgba(234, 179, 8, 0.85)';
+            oilSlicks.forEach(oil => {
+                const rx = cx + (oil.x - ship.x) * scale;
+                const ry = cy + (oil.y - ship.y) * scale;
+                if (Math.hypot(rx - cx, ry - cy) < cx - 4) {
+                    rCtx.beginPath();
+                    rCtx.arc(rx, ry, 2.5, 0, Math.PI * 2);
+                    rCtx.fill();
+                }
+            });
+
+            // Bukangi Blip
+            const bx = cx + (bukangi.x - ship.x) * scale;
+            const by = cy + (bukangi.y - ship.y) * scale;
+            if (Math.hypot(bx - cx, by - cy) < cx - 4) {
+                rCtx.fillStyle = '#38bdf8';
+                rCtx.shadowColor = '#38bdf8';
+                rCtx.shadowBlur = 8;
+                rCtx.beginPath();
+                rCtx.arc(bx, by, 4, 0, Math.PI * 2);
+                rCtx.fill();
+                rCtx.shadowBlur = 0;
+            }
+
+            // Ship Center Blip
+            rCtx.fillStyle = '#10b981';
+            rCtx.beginPath();
+            rCtx.arc(cx, cy, 3, 0, Math.PI * 2);
+            rCtx.fill();
+        }
+
+        /* -------------------------------------------------------------------------- */
+        /* CANVAS RENDERING (BUSAN BRIDGE & DRAG CAMERA OCEAN)                        */
+        /* -------------------------------------------------------------------------- */
+        function render() {
+            ctx.clearRect(0, 0, width, height);
+
+            // 1. Draw Busan Night Sky & Rainbow Bridge
+            drawNightSkyAndBridge();
+
+            // 2. Draw Water Surface
+            drawOceanSurface();
+
+            // 3. Draw Sub-surface Marine Life
+            drawMarineLife();
+
+            // 4. Draw Water Surface Locked Oil Slicks & Boss
+            drawOilSlicksAndBoss();
+
+            // 5. Draw Bukangi (Strictly Underwater Only)
+            drawBukangiShark();
+
+            // 6. Draw Guided Shell Projectiles & Particles
+            drawProjectilesAndParticles();
+        }
+
+        function drawNightSkyAndBridge() {
+            const horizonY = height * (0.45 + camera.pitch);
+
+            // Sky Gradient
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, Math.max(10, horizonY));
+            skyGrad.addColorStop(0, '#020617');
+            skyGrad.addColorStop(0.65, '#0f172a');
+            skyGrad.addColorStop(1, '#1e1b4b');
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, width, Math.max(0, horizonY));
+
+            // Stars
+            ctx.fillStyle = '#ffffff';
+            for (let i = 0; i < 45; i++) {
+                const totalAngle = ship.angle + camera.yaw;
+                const sx = (i * 137.5 + totalAngle * 180) % width;
+                const sy = (i * 83) % (height * 0.35);
+                ctx.globalAlpha = 0.4 + Math.sin(Date.now() * 0.002 + i) * 0.3;
+                ctx.fillRect((sx + width) % width, sy, 1.5, 1.5);
+            }
+            ctx.globalAlpha = 1.0;
+
+            // Busan North Port Rainbow Light Bridge
+            const bridgeAngle = (ship.angle + camera.yaw);
+            const bridgeCenterX = width / 2 - Math.sin(bridgeAngle) * 350;
+
+            ctx.save();
+            ctx.translate(bridgeCenterX, horizonY);
+
+            // Main Bridge Towers
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(-220, 0); ctx.lineTo(-150, -130); ctx.lineTo(-80, 0);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(80, 0); ctx.lineTo(150, -130); ctx.lineTo(220, 0);
+            ctx.stroke();
+
+            // Bridge Road Deck
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(-500, -8, 1000, 12);
+
+            // Rainbow Stay Cables
+            const time = Date.now() * 0.0015;
+            const colors = ['#f43f5e', '#fb923c', '#facc15', '#4ade80', '#38bdf8', '#c084fc'];
+
+            for (let i = 0; i < 12; i++) {
+                const color = colors[(i + Math.floor(time * 3)) % colors.length];
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1.8;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 10;
+
+                ctx.beginPath();
+                ctx.moveTo(-150, -130);
+                ctx.lineTo(-220 + i * 11, 0);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(150, -130);
+                ctx.lineTo(80 + i * 11, 0);
+                ctx.stroke();
+            }
+            ctx.shadowBlur = 0;
+            ctx.restore();
+        }
+
+        function drawOceanSurface() {
+            const horizonY = height * (0.45 + camera.pitch);
+            
+            // Ocean Cleanliness Dynamic Color
+            const isClean = gameState.cleanliness >= 80 || gameState.victory;
+            const seaGrad = ctx.createLinearGradient(0, horizonY, 0, height);
+            
+            if (isClean) {
+                seaGrad.addColorStop(0, '#0284c7');
+                seaGrad.addColorStop(0.5, '#0369a1');
+                seaGrad.addColorStop(1, '#0c4a6e');
+            } else {
+                seaGrad.addColorStop(0, '#091e3a');
+                seaGrad.addColorStop(0.5, '#041026');
+                seaGrad.addColorStop(1, '#020617');
+            }
+            
+            ctx.fillStyle = seaGrad;
+            ctx.fillRect(0, Math.max(0, horizonY), width, height - horizonY);
+
+            // Ocean Waves
+            ctx.lineWidth = 1;
+            for (let y = horizonY + 4; y < height; y += 11) {
+                const perspectiveScale = (y - horizonY) / (height - horizonY);
+                const waveOffset = Math.sin(y * 0.05 + Date.now() * 0.003 + ship.x * 0.01) * 22 * perspectiveScale;
+                
+                ctx.strokeStyle = isClean 
+                    ? `rgba(125, 211, 252, ${0.15 + perspectiveScale * 0.2})`
+                    : `rgba(56, 189, 248, ${0.05 + perspectiveScale * 0.12})`;
+
+                ctx.beginPath();
+                ctx.moveTo(0, y + waveOffset);
+                ctx.lineTo(width, y + waveOffset);
+                ctx.stroke();
+            }
+        }
+
+        function drawMarineLife() {
+            const horizonY = height * (0.45 + camera.pitch);
+            
+            marineEntities.forEach(m => {
+                const dx = m.x - ship.x;
+                const dy = m.y - ship.y;
+                const totalYaw = ship.angle + camera.yaw;
+                
+                let relAngle = Math.atan2(dy, dx) - totalYaw;
+                relAngle = Math.atan2(Math.sin(relAngle), Math.cos(relAngle));
+                if (Math.abs(relAngle) > Math.PI / 1.6) return;
+
+                const dist = Math.hypot(dx, dy);
+                const screenX = width / 2 + Math.sin(relAngle) * (dist * 1.5);
+                const screenY = horizonY + Math.max(0, Math.cos(relAngle) * (dist * 0.45)) + m.depth;
+
+                if (dist < 800 && screenX > -100 && screenX < width + 100 && screenY > horizonY) {
+                    const scale = Math.max(0.15, 1 - dist / 800);
+                    ctx.save();
+                    ctx.translate(screenX, screenY);
+                    ctx.scale(scale, scale);
+                    ctx.globalAlpha = Math.max(0, 0.85 - (m.depth / 260));
+
+                    if (m.type === 'mackerel') {
+                        ctx.fillStyle = '#cbd5e1'; 
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, 9, 3.5, m.angle - totalYaw, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.beginPath();
+                        ctx.moveTo(-8, 0); ctx.lineTo(-14, -5); ctx.lineTo(-14, 5);
+                        ctx.fill();
+                    } else if (m.type === 'anchovy') {
+                        ctx.fillStyle = '#38bdf8';
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, 5, 2, m.angle - totalYaw, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else if (m.type === 'jellyfish') {
+                        ctx.fillStyle = `rgba(167, 139, 250, ${0.4 + Math.sin(m.pulse)*0.2})`;
+                        ctx.shadowColor = '#a78bfa'; ctx.shadowBlur = 8;
+                        ctx.beginPath(); ctx.arc(0, -5, 7, Math.PI, 0); ctx.fill();
+                        ctx.strokeStyle = `rgba(167, 139, 250, 0.6)`;
+                        ctx.lineWidth = 1.2;
+                        ctx.beginPath();
+                        ctx.moveTo(-4, -5); ctx.quadraticCurveTo(-5, 3, -6, 6 + Math.sin(m.pulse)*4);
+                        ctx.moveTo(0, -5); ctx.quadraticCurveTo(0, 3, 0, 8 + Math.cos(m.pulse)*4);
+                        ctx.moveTo(4, -5); ctx.quadraticCurveTo(5, 3, 6, 6 + Math.sin(m.pulse)*4);
+                        ctx.stroke();
+                        ctx.shadowBlur = 0;
+                    } else if (m.type === 'turtle') {
+                        ctx.fillStyle = '#064e3b';
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, 14, 11, m.angle - totalYaw, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.fillStyle = '#34d399';
+                        ctx.beginPath();
+                        ctx.arc(12, 0, 4.5, 0, Math.PI * 2); 
+                        ctx.fill();
+                    }
+                    
+                    ctx.restore();
+                }
+            });
+        }
+
+        /* -------------------------------------------------------------------------- */
+        /* WATER SURFACE LOCKED OIL SLICKS & BOSS                                     */
+        /* -------------------------------------------------------------------------- */
+        function drawOilSlicksAndBoss() {
+            const horizonY = height * (0.45 + camera.pitch);
+
+            // Water Surface Oil Slicks
+            oilSlicks.forEach(oil => {
+                const dx = oil.x - ship.x;
+                const dy = oil.y - ship.y;
+                const totalYaw = ship.angle + camera.yaw;
+                
+                let relAngle = Math.atan2(dy, dx) - totalYaw;
+                relAngle = Math.atan2(Math.sin(relAngle), Math.cos(relAngle));
+                if (Math.abs(relAngle) > Math.PI / 1.6) return;
+
+                const dist = Math.hypot(dx, dy);
+                const screenX = width / 2 + Math.sin(relAngle) * (dist * 1.5);
+                const screenY = horizonY + Math.cos(relAngle) * (dist * 0.45);
+
+                if (dist < 850 && screenX > -150 && screenX < width + 150 && screenY > horizonY) {
+                    const scale = Math.max(0.2, 1 - dist / 750);
+                    ctx.save();
+                    ctx.translate(screenX, screenY);
+                    ctx.scale(scale, scale * 0.4); // Flattened on water surface
+
+                    const grad = ctx.createRadialGradient(0, 0, 5, 0, 0, oil.radius);
+                    grad.addColorStop(0, 'rgba(15, 23, 42, 0.98)');
+                    grad.addColorStop(0.65, 'rgba(67, 56, 202, 0.65)');
+                    grad.addColorStop(1, 'rgba(16, 185, 129, 0)');
+
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, oil.radius * 2.2, oil.radius * 1.2, Math.sin(Date.now() * 0.001), 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.restore();
+                }
+            });
+
+            // Stage 3 Boss Monster
+            if (gameState.bossActive && gameState.bossHP > 0) {
+                const bossX = width / 2;
+                const bossY = horizonY + 80;
+
+                ctx.save();
+                ctx.translate(bossX, bossY);
+
+                ctx.fillStyle = '#090d16';
+                ctx.shadowColor = '#dc2626';
+                ctx.shadowBlur = 35;
+
+                ctx.beginPath();
+                ctx.ellipse(0, -40, 95, 115, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Eyes
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.arc(-32, -70, 13, 0, Math.PI * 2);
+                ctx.arc(32, -70, 13, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Sludge Tentacles
+                ctx.strokeStyle = '#020617';
+                ctx.lineWidth = 12;
+                for (let i = -3; i <= 3; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(i * 25, 0);
+                    ctx.quadraticCurveTo(i * 35 + Math.sin(Date.now() * 0.005 + i) * 20, 60, i * 45, 110);
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            }
+
+            // Boss Attacks (Ink Bombs)
+            bossAttacks.forEach(ba => {
+                const dx = ba.x - ship.x;
+                const dy = ba.y - ship.y;
+                const totalYaw = ship.angle + camera.yaw;
+
+                let relAngle = Math.atan2(dy, dx) - totalYaw;
+                relAngle = Math.atan2(Math.sin(relAngle), Math.cos(relAngle));
+                if (Math.abs(relAngle) > Math.PI / 1.6) return;
+
+                const dist = Math.hypot(dx, dy);
+                const screenX = width / 2 + Math.sin(relAngle) * (dist * 1.5);
+                const screenY = horizonY + Math.cos(relAngle) * (dist * 0.45) - (ba.life / 2.5);
+
+                ctx.fillStyle = '#0f172a';
+                ctx.shadowColor = '#ef4444';
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, 14, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            });
+        }
+
+        /* -------------------------------------------------------------------------- */
+        /* BUKANGI SHARK (STRICTLY UNDERWATER FULLTIME)                               */
+        /* -------------------------------------------------------------------------- */
+        function drawBukangiShark() {
+            const horizonY = height * (0.45 + camera.pitch);
+
+            const dx = bukangi.x - ship.x;
+            const dy = bukangi.y - ship.y;
+            const totalYaw = ship.angle + camera.yaw;
+            
+            let relAngle = Math.atan2(dy, dx) - totalYaw;
+            relAngle = Math.atan2(Math.sin(relAngle), Math.cos(relAngle));
+            if (Math.abs(relAngle) > Math.PI / 1.6) return;
+
+            const dist = Math.hypot(dx, dy);
+
+            let screenX = width / 2 + Math.sin(relAngle) * (dist * 1.5);
+            // Strictly Sub-Surface Logic: Depth Offset Forces it Always Deep Underwater
+            let screenY = horizonY + Math.max(10, Math.cos(relAngle) * (dist * 0.45)) + bukangi.depth; 
+
+            if (dist < 750 && screenX > -100 && screenX < width + 100) {
+                const scale = Math.max(0.45, 1.3 - dist / 600);
+                
+                ctx.save();
+                ctx.translate(screenX, screenY);
+                ctx.scale(scale, scale);
+
+                // Strictly Underwater Visual (Blue Glow Effect)
+                ctx.globalAlpha = 0.88; 
+                ctx.shadowColor = '#06b6d4';
+                ctx.shadowBlur = 30;
+
+                // Shark Body (Blue)
+                ctx.fillStyle = '#0284c7';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 38, 28, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // White Belly
+                ctx.fillStyle = '#f8fafc';
+                ctx.beginPath();
+                ctx.ellipse(2, 6, 25, 15, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Dorsal Fin
+                ctx.fillStyle = '#0284c7';
+                ctx.beginPath();
+                ctx.moveTo(-6, -26);
+                ctx.lineTo(8, -42);
+                ctx.lineTo(15, -26);
+                ctx.closePath();
+                ctx.fill();
+
+                // Sailor Collar & Red Tie
+                ctx.fillStyle = '#1e3a8a';
+                ctx.fillRect(-12, -8, 24, 8);
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(-2, -4, 5, 10);
+
+                // Yellow Backpack
+                ctx.fillStyle = '#eab308';
+                ctx.fillRect(-22, -10, 8, 16);
+
+                // Black Sunglasses Headset
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath();
+                ctx.roundRect(4, -22, 11, 8, 2);
+                ctx.roundRect(17, -22, 11, 8, 2);
+                ctx.fill();
+                ctx.strokeStyle = '#94a3b8';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                // Eye
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(16, -4, 4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(18, -6, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Underwater Waving Hand
+                ctx.fillStyle = '#0284c7';
+                ctx.beginPath();
+                ctx.arc(26, -2 + Math.sin(Date.now() * 0.01) * 8, 6, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+        }
+
+        function drawProjectilesAndParticles() {
+            const horizonY = height * (0.45 + camera.pitch);
+
+            ctx.fillStyle = '#38bdf8';
+            ctx.shadowColor = '#38bdf8';
+            ctx.shadowBlur = 12;
+
+            projectiles.forEach(p => {
+                const dx = p.x - ship.x;
+                const dy = p.y - ship.y;
+                const totalYaw = ship.angle + camera.yaw;
+                const relAngle = Math.atan2(dy, dx) - totalYaw;
+                const dist = Math.hypot(dx, dy);
+
+                const screenX = width / 2 + Math.sin(relAngle) * (dist * 1.5);
+                const screenY = horizonY + Math.cos(relAngle) * (dist * 0.45);
+
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, p.radius / 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            particles.forEach(pt => {
+                ctx.fillStyle = pt.color;
+                ctx.fillRect(pt.x, pt.y, pt.size, pt.size);
+            });
+            ctx.shadowBlur = 0;
+        }
+
+        /* -------------------------------------------------------------------------- */
+        /* MAIN ANIMATION LOOP                                                        */
+        /* -------------------------------------------------------------------------- */
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        window.onload = function() {
+            init();
+        };
+    </script>
+<script>
+EcoFX.mount({title:"기름 확산 차단과 회수",goal:"회수 도구 선택 → 기름 수거 → 적재함 비우기 → 방제 장비 보강",note:"회수 캡슐은 가상 장비입니다. 실제 유화제는 기름을 없애는 만능 수단이 아니며 현장 조건에 따라 전문 판단이 필요합니다.",read:()=>({label:'정화 '+Math.round(gameState.cleanliness)+'% · 기록',progress:gameState.cleanliness,detail:'구역 '+gameState.stage+' · 적재 '+Math.round(gameState.cargo)+'/'+gameState.maxCargo+' · 게임 정화 지표 '+Math.round(gameState.cleanliness)+'%. 적재 한도를 확인하세요.'}),actions:[]});document.getElementById('soundToggleBtn').style.display='none';
+</script>
+</body>
+</html>

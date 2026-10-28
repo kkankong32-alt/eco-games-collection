@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta name="referrer" content="no-referrer">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>클린 오션 3D (Clean Ocean 3D)</title>
+    <!-- Tailwind CSS -->
+    <link rel="stylesheet" href="vendor/tailwind.css">
+    <!-- FontAwesome for UI Icons -->
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Pretendard', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            background-color: #030712;
+            color: #f8fafc;
+            overflow: hidden;
+            touch-action: none;
+        }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.8);
+        }
+        .btn-hover {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-hover:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 12px 24px -8px rgba(16, 185, 129, 0.5);
+        }
+        .btn-hover:active {
+            transform: translateY(0) scale(0.98);
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 1020px;
+            height: min(720px, 86vh);
+            margin: auto;
+            overflow: hidden;
+            border-radius: 1.25rem;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        @keyframes hazardGlitch {
+            0% { transform: translate(0); }
+            20% { transform: translate(-3px, 2px); filter: hue-rotate(90deg); }
+            40% { transform: translate(-2px, -2px); }
+            60% { transform: translate(3px, 1px); filter: hue-rotate(180deg); }
+            80% { transform: translate(1px, -2px); }
+            100% { transform: translate(0); }
+        }
+        .hazard-shake {
+            animation: hazardGlitch 0.25s infinite;
+        }
+    </style>
+<style>.hidden { display: none !important; }</style>
+<script src="eco-feedback.js"></script>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-2 sm:p-4">
+
+    <!-- Header / Title -->
+    <header class="w-full max-w-[1020px] mb-2 flex items-center justify-between px-2">
+        <div class="flex items-center gap-2">
+            <span class="text-3xl sm:text-4xl animate-bounce">🌊</span>
+            <h1 class="text-2xl sm:text-3xl font-black bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent tracking-tight">
+                클린 오션 <span class="text-xs font-bold text-emerald-300 px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/50 ml-1">CLEAN OCEAN 3D</span>
+            </h1>
+        </div>
+        <div class="text-xs sm:text-sm text-slate-400 flex items-center gap-3">
+            <span class="bg-slate-900/90 px-3 py-1 rounded-full border border-slate-700/60 text-emerald-300">
+                <span aria-hidden="true" class="text-emerald-400 mr-1.5">♧</span>해양 구원 임무
+            </span>
+        </div>
+    </header>
+
+    <!-- Main Game Frame -->
+    <div id="game-container" class="border border-emerald-950">
+        <!-- Visual Static Interference / EMP Noise Effect Overlay -->
+        <div id="emp-overlay" class="absolute inset-0 bg-emerald-950/20 mix-blend-color-dodge pointer-events-none opacity-0 transition-opacity duration-100 z-10"></div>
+
+        <!-- Top HUD -->
+        <div id="hud" class="absolute top-3 left-3 right-3 z-20 flex flex-wrap gap-2 items-center justify-between pointer-events-none hidden">
+            <!-- Score Card -->
+            <div class="glass-card px-3.5 py-2 rounded-xl flex items-center gap-2.5">
+                <span aria-hidden="true" class="text-amber-400 text-lg sm:text-xl">🏆</span>
+                <div>
+                    <div class="text-[9px] sm:text-[10px] text-slate-400 uppercase tracking-wider font-bold">SCORE</div>
+                    <div id="score-text" class="text-lg sm:text-2xl font-black text-white leading-none">0</div>
+                </div>
+            </div>
+
+            <!-- Difficulty Tag & Controls -->
+            <div class="glass-card px-3 py-2 rounded-xl flex items-center gap-2 pointer-events-auto">
+                <span id="diff-tag" class="text-xs font-bold px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">순한맛 (초보)</span>
+                
+                <!-- 난이도 변경 버튼 -->
+                <button id="in-game-diff-btn" class="text-slate-300 hover:text-white bg-slate-800/90 hover:bg-slate-700 px-2.5 py-1 rounded-lg text-xs font-bold transition border border-slate-600/50 cursor-pointer flex items-center gap-1.5" title="난이도 변경">
+                    <span aria-hidden="true" class="text-amber-400">ⓘ</span> 난이도
+                </button>
+
+                <!-- 일시정지 버튼 -->
+                <button id="in-game-pause-btn" class="text-slate-300 hover:text-white bg-slate-800/90 hover:bg-slate-700 px-2.5 py-1 rounded-lg text-xs font-bold transition border border-slate-600/50 cursor-pointer flex items-center gap-1.5" title="일시정지">
+                    <i id="pause-icon" class="fa-solid fa-pause text-cyan-400"></i> <span id="pause-btn-text">일시정지</span>
+                </button>
+
+                <button id="in-game-restart-btn" class="text-slate-300 hover:text-white bg-slate-800/90 hover:bg-slate-700 px-2.5 py-1 rounded-lg text-xs font-bold transition border border-slate-600/50 cursor-pointer flex items-center gap-1.5">
+                    <span aria-hidden="true" class="">↻</span> 다시하기
+                </button>
+            </div>
+
+            <!-- Pollution Bar Card -->
+            <div class="glass-card px-3.5 py-2 rounded-xl flex-1 max-w-[280px] sm:max-w-[340px] mx-1">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                        <i class="fa-solid fa-radiation text-amber-400 animate-pulse" id="pollution-icon"></i> 오염 수치
+                    </span>
+                    <span id="pollution-text" class="text-xs font-black text-amber-400">70%</span>
+                </div>
+                <div class="w-full bg-slate-900 rounded-full h-3.5 p-0.5 overflow-hidden border border-emerald-900/60 shadow-inner">
+                    <div id="pollution-bar" class="h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-600 transition-all duration-200" style="width: 70%;"></div>
+                </div>
+            </div>
+
+            <!-- Timer Card -->
+            <div class="glass-card px-3.5 py-2 rounded-xl flex items-center gap-2.5">
+                <span aria-hidden="true" class="text-emerald-400 text-lg sm:text-xl">◷</span>
+                <div>
+                    <div class="text-[9px] sm:text-[10px] text-slate-400 uppercase tracking-wider font-bold">TIME</div>
+                    <div id="time-text" class="text-lg sm:text-2xl font-black text-emerald-400 leading-none">60s</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Canvas -->
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- Pause Overlay Screen -->
+        <div id="pause-screen" class="absolute inset-0 z-30 glass-card rounded-2xl p-6 flex flex-col items-center justify-center text-center hidden">
+            <div class="max-w-md w-full bg-slate-950/80 p-6 rounded-2xl border border-slate-700 shadow-2xl">
+                <div class="text-5xl mb-3 animate-pulse">⏸️</div>
+                <h2 class="text-3xl font-black text-white mb-2">일시 정지</h2>
+                <p class="text-slate-400 text-sm mb-6">게임이 일시 정지되었습니다.</p>
+                <div class="flex flex-col gap-3">
+                    <button id="resume-btn" class="btn-hover py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold rounded-xl text-base shadow-lg cursor-pointer">
+                        <span aria-hidden="true" class="mr-2">▶</span>게임 계속하기
+                    </button>
+                    <button id="pause-change-diff-btn" class="btn-hover py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-sm border border-slate-600/60 cursor-pointer">
+                        <span aria-hidden="true" class="text-amber-400 mr-2">ⓘ</span>난이도 변경하기
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Start Overlay Screen -->
+        <div id="start-screen" class="absolute inset-0 z-30 glass-card rounded-2xl p-4 sm:p-6 flex flex-col items-center justify-between text-center overflow-y-auto">
+            <div class="my-auto max-w-xl w-full">
+                <div class="text-5xl sm:text-6xl mb-2 animate-bounce">🐢</div>
+                <h2 class="text-2xl sm:text-4xl font-black text-white mb-2 tracking-tight">바다 정화 대작전</h2>
+                <p class="text-slate-300 text-xs sm:text-sm mb-4 leading-relaxed">
+                    쓰레기와 해양 생물이 떠다니는 바다를 정화해 주세요!<br/>
+                    마우스나 터치로 배를 움직이고 클릭해서 낚싯바늘을 내려 쓰레기를 건져내세요.
+                </p>
+
+                <!-- Difficulty Selection Cards -->
+                <div class="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
+                    <button class="diff-btn active-diff text-left p-2.5 sm:p-3 rounded-xl border-2 transition-all cursor-pointer bg-slate-900/80 border-emerald-500 ring-2 ring-emerald-500/30" data-diff="EASY">
+                        <div class="font-black text-emerald-400 text-xs sm:text-sm flex items-center gap-1">🌱 순한맛 (초보)</div>
+                        <div class="text-[10px] sm:text-xs text-slate-400 mt-1 space-y-0.5">
+                            <div>⏱️ 60초</div>
+                            <div>☣️ 시작 70%</div>
+                            <div>🎯 목표 ≤30%</div>
+                        </div>
+                    </button>
+
+                    <button class="diff-btn text-left p-2.5 sm:p-3 rounded-xl border-2 transition-all cursor-pointer bg-slate-900/80 border-slate-700 hover:border-amber-500" data-diff="NORMAL">
+                        <div class="font-black text-amber-400 text-xs sm:text-sm flex items-center gap-1">🌊 매운맛 (중급)</div>
+                        <div class="text-[10px] sm:text-xs text-slate-400 mt-1 space-y-0.5">
+                            <div>⏱️ 50초</div>
+                            <div>☣️ 시작 85%</div>
+                            <div>🎯 목표 ≤20%</div>
+                        </div>
+                    </button>
+
+                    <button class="diff-btn text-left p-2.5 sm:p-3 rounded-xl border-2 transition-all cursor-pointer bg-slate-900/80 border-slate-700 hover:border-rose-500" data-diff="HARDCORE">
+                        <div class="font-black text-rose-500 text-xs sm:text-sm flex items-center gap-1">💀 지옥맛 (상급)</div>
+                        <div class="text-[10px] sm:text-xs text-slate-400 mt-1 space-y-0.5">
+                            <div>⏱️ 35초</div>
+                            <div>☣️ 시작 98%</div>
+                            <div>🎯 목표 ≤10%</div>
+                        </div>
+                    </button>
+                </div>
+
+                <!-- Entity Rules & Info Grid -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-left text-[11px] sm:text-xs bg-slate-950/80 p-3 sm:p-4 rounded-xl border border-emerald-900/50 mb-5">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl sm:text-2xl">🐢</span>
+                        <div>
+                            <div class="font-bold text-emerald-300">그물 갇힌 거북이</div>
+                            <div class="text-emerald-400">+250점 | 오염 -8%</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl sm:text-2xl">🍾</span>
+                        <div>
+                            <div class="font-bold text-sky-300">플라스틱 병/비닐</div>
+                            <div class="text-sky-400">+50점 | 오염 -1.5%</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl sm:text-2xl">👑</span>
+                        <div>
+                            <div class="font-bold text-amber-300">전설의 황금 영물고기</div>
+                            <div class="text-amber-400">클리어 열쇠! 오염 -20%</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl sm:text-2xl">🚢</span>
+                        <div>
+                            <div class="font-bold text-purple-300">거대 침몰선 잔해</div>
+                            <div class="text-purple-400">오염 -15% | +500점</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl sm:text-2xl">🐟</span>
+                        <div>
+                            <div class="font-bold text-rose-300">일반 바다 물고기</div>
+                            <div class="text-rose-400">건드리면 오염 +10%</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl sm:text-2xl">🐡</span>
+                        <div>
+                            <div class="font-bold text-rose-400">돌연변이 가시어</div>
+                            <div class="text-rose-500">함정! 오염 +20% | -300점</div>
+                        </div>
+                    </div>
+                </div>
+
+                <button id="start-btn" class="btn-hover w-full py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-black rounded-xl text-base sm:text-lg shadow-xl cursor-pointer tracking-wide">
+                    <span aria-hidden="true" class="mr-2">▶</span>바다 정화 시작하기
+                </button>
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="absolute inset-0 z-30 glass-card rounded-2xl p-6 flex flex-col items-center justify-between text-center hidden">
+            <div class="my-auto max-w-lg w-full">
+                <div id="end-icon" class="text-5xl sm:text-7xl mb-2">🎉</div>
+                <h2 id="end-title" class="text-2xl sm:text-4xl font-black text-white mb-1">바다 정화 성공!</h2>
+                <p id="end-subtitle" class="text-slate-300 text-xs sm:text-sm mb-4">당신의 훌륭한 컨트롤로 바다가 깨끗해졌습니다.</p>
+
+                <div class="flex justify-center gap-3 my-3">
+                    <div class="bg-slate-900/80 px-5 py-3 rounded-xl border border-slate-700/60 shadow-lg">
+                        <div class="text-[10px] text-slate-400 font-bold uppercase">최종 점수</div>
+                        <div id="final-score" class="text-2xl sm:text-3xl font-black text-amber-400">0</div>
+                    </div>
+                    <div class="bg-slate-900/80 px-5 py-3 rounded-xl border border-slate-700/60 shadow-lg">
+                        <div class="text-[10px] text-slate-400 font-bold uppercase">달성 오염도 (목표)</div>
+                        <div id="final-pollution" class="text-2xl sm:text-3xl font-black text-emerald-400">25% (목표 30%)</div>
+                    </div>
+                </div>
+
+                <div class="bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-3.5 sm:p-4 text-left mb-6 shadow-inner">
+                    <div class="text-xs font-bold text-emerald-400 flex items-center gap-1.5 mb-1">
+                        <span aria-hidden="true" class="text-emerald-400">♧</span> 생태계 메시지 & 환경 팁
+                    </div>
+                    <p id="env-tip" class="text-xs text-slate-300 leading-relaxed">
+                        방사능 폐기물과 미세플라스틱은 파괴된 해양 생태계에 회복 불가능한 손상을 유발합니다.
+                    </p>
+                </div>
+
+                <div class="flex gap-3 justify-center">
+                    <button id="restart-btn" class="btn-hover flex-1 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold rounded-xl text-sm sm:text-base shadow-lg cursor-pointer">
+                        <span aria-hidden="true" class="mr-1.5">↻</span>다시 도전하기
+                    </button>
+                    <button id="home-btn" class="btn-hover flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white font-extrabold rounded-xl text-sm sm:text-base shadow-lg cursor-pointer">
+                        <span aria-hidden="true" class="mr-1.5">ⓘ</span>난이도 선택
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="mt-3 text-center text-xs text-slate-500">
+        Clean Ocean Arcade &copy; 2026. 지구 환경 보호 캠페인
+    </footer>
+
+    <!-- Game Logic Script -->
+    <script>
+        // Global Canvas & UI Declarations
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameContainer = document.getElementById('game-container');
+        const empOverlay = document.getElementById('emp-overlay');
+        const hud = document.getElementById('hud');
+        const startScreen = document.getElementById('start-screen');
+        const endScreen = document.getElementById('end-screen');
+        const pauseScreen = document.getElementById('pause-screen');
+
+        const scoreText = document.getElementById('score-text');
+        const pollutionText = document.getElementById('pollution-text');
+        const pollutionBar = document.getElementById('pollution-bar');
+        const timeText = document.getElementById('time-text');
+        const diffTag = document.getElementById('diff-tag');
+        const pauseBtnText = document.getElementById('pause-btn-text');
+        const pauseIcon = document.getElementById('pause-icon');
+
+        // Game State Variables
+        let isPlaying = false;
+        let isPaused = false;
+        let score = 0;
+        let pollution = 70;
+        let gameTime = 60;
+        let lastTime = 0;
+        let empTimer = 0;
+        let animationFrameId = null;
+        let currentDiffKey = 'EASY';
+
+        let seaObjects = [];
+        let bubbles = [];
+        let floatingTexts = [];
+
+        // Boat and Hook State
+        const boat = { x: 0, y: 80, targetX: 0, width: 80, height: 26 };
+        const hook = { x: 0, y: 105, startY: 105, state: 'IDLE', baseSpeed: 520, maxDepth: 500, radius: 12, caughtObject: null };
+
+        // Difficulty Configurations
+        const DIFFICULTIES = {
+            EASY: { name: '🌱 순한맛 (초보)', time: 60, startPollution: 70, targetPollution: 30, badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40', speedMult: 0.65, empInterval: 15 },
+            NORMAL: { name: '🌊 매운맛 (중급)', time: 50, startPollution: 85, targetPollution: 20, badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40', speedMult: 0.9, empInterval: 10 },
+            HARDCORE: { name: '💀 지옥맛 (상급)', time: 35, startPollution: 98, targetPollution: 10, badgeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/40', speedMult: 1.25, empInterval: 5 }
+        };
+
+        // Environmental Tips
+        const ENV_TIPS = [
+            "방사능 폐기물과 미세플라스틱은 파괴된 해양 생태계에 회복 불가능한 돌연변이 손상을 유발합니다.",
+            "해마다 800만 톤 이상의 쓰레기가 바다로 유입되어 수많은 해양 생물의 생명을 위협합니다.",
+            "바다 정화는 작고 꾸준한 실천에서 시작됩니다. 쓰레기 분리배출을 생활화해 주세요!"
+        ];
+
+        // Sound Effects Synthesizer (Web Audio API)
+        const sound = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            },
+            playCatchTrash() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(600, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.15);
+            },
+            playHazardTrap() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.3);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.3);
+            },
+            playGoldenGuardian() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, this.ctx.currentTime);
+                osc.frequency.setValueAtTime(659.25, this.ctx.currentTime + 0.1);
+                osc.frequency.setValueAtTime(783.99, this.ctx.currentTime + 0.2);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.35);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.35);
+            },
+            playSaveTurtle() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.25);
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            },
+            playEMPNoise() {
+                if (!this.ctx) return;
+                const bufferSize = this.ctx.sampleRate * 0.15;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                noise.connect(gain);
+                gain.connect(this.ctx.destination);
+                noise.start();
+            }
+        };
+
+        // Image Asset Loader System
+        const IMAGES = {};
+        const IMAGE_SOURCES = {
+            BOTTLE: 'image/image1.png',
+            BAG: 'image/image2.png',
+            BARREL: 'image/image3.png',
+            FISH: 'image/image4.png',
+            TOXIC_DRUM: 'image/image5.png',
+            SHIPWRECK: 'image/image6.png',
+            GOLDEN_FISH: 'image/image7.png',
+            NET: 'image/image8.png',
+            MUTANT_FISH: 'image/image9.png',
+            TURTLE: 'image/image10.png'
+        };
+
+        const SVG_FALLBACKS = {
+            BOTTLE: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="35" y="10" width="30" height="15" rx="3" fill="%2338bdf8"/><rect x="25" y="25" width="50" height="65" rx="8" fill="%237dd3fc" opacity="0.85"/></svg>',
+            BAG: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M30,30 C30,10 70,10 70,30 L85,85 C85,90 80,95 75,95 L25,95 C20,95 15,90 15,85 Z" fill="%23cbd5e1" opacity="0.8"/></svg>',
+            BARREL: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="20" y="15" width="60" height="70" rx="10" fill="%2365a30d"/><rect x="20" y="30" width="60" height="8" fill="%233f6212"/><rect x="20" y="60" width="60" height="8" fill="%233f6212"/></svg>',
+            FISH: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M10,50 Q40,20 80,50 Q40,80 10,50 Z" fill="%23f97316"/><polygon points="80,50 95,30 95,70" fill="%23ea580c"/></svg>',
+            TOXIC_DRUM: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect x="20" y="15" width="60" height="70" rx="10" fill="%23991b1b"/><circle cx="50" cy="50" r="16" fill="%23fef08a"/><text x="50" y="56" text-anchor="middle" font-size="18" fill="black">☣</text></svg>',
+            SHIPWRECK: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M10,60 L90,60 L75,90 L25,90 Z" fill="%2378350f"/><rect x="40" y="20" width="6" height="40" fill="%23451a03"/></svg>',
+            GOLDEN_FISH: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M10,50 Q40,15 80,50 Q40,85 10,50 Z" fill="%23fbbf24"/><polygon points="80,50 98,25 98,75" fill="%23f59e0b"/></svg>',
+            NET: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><path d="M10,10 L90,90 M90,10 L10,90" stroke="%2394a3b8" stroke-width="5"/></svg>',
+            MUTANT_FISH: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="35" fill="%2384cc16"/><circle cx="35" cy="40" r="8" fill="%23f43f5e"/></svg>',
+            TURTLE: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><ellipse cx="50" cy="50" rx="30" ry="22" fill="%23059669"/><circle cx="80" cy="50" r="10" fill="%2310b981"/></svg>'
+        };
+
+        function loadGameAssets() {
+            Object.keys(IMAGE_SOURCES).forEach(key => {
+                const img = new Image();
+                img.src = IMAGE_SOURCES[key];
+                img.onerror = () => { img.src = SVG_FALLBACKS[key]; };
+                IMAGES[key] = img;
+            });
+        }
+        loadGameAssets();
+
+        // Entity Types Specification
+        const TYPES = {
+            BOTTLE: { imgKey: 'BOTTLE', score: 50, pollutionChange: -1.5, size: 42, speed: 50, weight: 1.0, depthLayer: 1, isGood: true },
+            BAG: { imgKey: 'BAG', score: 50, pollutionChange: -1.5, size: 44, speed: 45, weight: 1.0, depthLayer: 1, isGood: true },
+            BARREL: { imgKey: 'BARREL', score: 100, pollutionChange: -3, size: 52, speed: 38, weight: 1.2, depthLayer: 2, isGood: true },
+            TOXIC_DRUM: { imgKey: 'TOXIC_DRUM', score: 400, pollutionChange: -15, size: 58, speed: 85, isToxic: true, weight: 2.2, label: '☢️ 핵폐기물 정화! (+400점/오염 -15%)', depthLayer: 2, isGood: true },
+            MUTANT_FISH: { imgKey: 'MUTANT_FISH', score: -300, pollutionChange: 20, size: 46, speed: 195, isMutant: true, weight: 1.0, label: '☣️ 돌연변이 가시어 (+20%)', depthLayer: 1, isGood: false },
+            GOLDEN_FISH: { imgKey: 'GOLDEN_FISH', score: 600, pollutionChange: -20, size: 64, speed: 230, isGolden: true, weight: 0.9, label: '👑 황금 영물고기 (-20%)', depthLayer: 2, isGood: true },
+            TURTLE: { imgKey: 'TURTLE', score: 250, pollutionChange: -8, size: 60, speed: 70, trapped: true, weight: 1.0, label: '거북이 구조! (-8%)', depthLayer: 2, isGood: true },
+            SHIPWRECK: { imgKey: 'SHIPWRECK', score: 500, pollutionChange: -15, size: 90, speed: 25, isShipwreck: true, weight: 2.8, label: '대형 잔해 견인! (-15%)', depthLayer: 3, isGood: true },
+            FISH: { imgKey: 'FISH', score: -180, pollutionChange: 10, size: 48, speed: 140, isFish: true, weight: 1.0, label: '생물 충돌! (+10%)', depthLayer: 1, isGood: false }
+        };
+
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            boat.y = Math.min(85, canvas.height * 0.14);
+            hook.startY = boat.y + 25;
+            if (hook.state === 'IDLE') {
+                hook.y = hook.startY;
+            }
+            hook.maxDepth = canvas.height - 35;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        function updateMousePos(clientX) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = clientX - rect.left;
+            boat.targetX = Math.max(boat.width / 2, Math.min(canvas.width - boat.width / 2, mouseX));
+        }
+
+        canvas.addEventListener('mousemove', (e) => updateMousePos(e.clientX));
+        canvas.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 0) updateMousePos(e.touches[0].clientX);
+        }, { passive: true });
+
+        function triggerHook() {
+            if (!isPlaying || isPaused) return;
+            sound.init();
+            if (hook.state === 'IDLE') {
+                hook.state = 'DOWN';
+            }
+        }
+
+        canvas.addEventListener('click', triggerHook);
+        canvas.addEventListener('touchstart', () => triggerHook(), { passive: true });
+
+        // Sea Object Class
+        class SeaObject {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                const diffConfig = DIFFICULTIES[currentDiffKey];
+                const rand = Math.random();
+
+                // 초보자 모드에서는 쓰레기와 이로운 오브젝트 출현 비율을 높임
+                if (currentDiffKey === 'EASY') {
+                    if (rand < 0.20) this.type = TYPES.FISH;
+                    else if (rand < 0.35) this.type = TYPES.MUTANT_FISH;
+                    else if (rand < 0.55) this.type = Math.random()<0.5 ? TYPES.BOTTLE : TYPES.BAG;
+                    else if (rand < 0.70) this.type = TYPES.BARREL;
+                    else if (rand < 0.82) this.type = TYPES.TURTLE;
+                    else if (rand < 0.90) this.type = TYPES.SHIPWRECK;
+                    else if (rand < 0.96) this.type = TYPES.GOLDEN_FISH;
+                    else this.type = TYPES.TOXIC_DRUM;
+                } else {
+                    if (rand < 0.35) this.type = TYPES.FISH;
+                    else if (rand < 0.65) this.type = TYPES.MUTANT_FISH;
+                    else if (rand < 0.77) this.type = Math.random()<0.5 ? TYPES.BOTTLE : TYPES.BAG;
+                    else if (rand < 0.85) this.type = TYPES.BARREL;
+                    else if (rand < 0.90) this.type = TYPES.TURTLE;
+                    else if (rand < 0.94) this.type = TYPES.SHIPWRECK;
+                    else if (rand < 0.97) this.type = TYPES.GOLDEN_FISH;
+                    else this.type = TYPES.TOXIC_DRUM;
+                }
+
+                this.size = this.type.size;
+                this.depthLayer = this.type.depthLayer;
+                this.depthScale = this.depthLayer === 3 ? 0.85 : (this.depthLayer === 2 ? 1.0 : 1.15);
+
+                this.direction = Math.random() < 0.5 ? 1 : -1;
+                this.x = this.direction === 1 ? -this.size * 2 : canvas.width + this.size * 2;
+                
+                const minY = boat.y + 75;
+                const maxY = canvas.height - 55;
+                this.y = minY + Math.random() * (maxY - minY);
+
+                this.speed = (this.type.speed * diffConfig.speedMult + Math.random() * 30) * this.direction * this.depthScale;
+                this.caught = false;
+                this.wobblePhase = Math.random() * Math.PI * 2;
+                this.zigzagPhase = Math.random() * Math.PI * 2;
+            }
+
+            update(dt) {
+                if (this.caught) return;
+
+                this.x += this.speed * dt;
+                this.wobblePhase += dt * 3.5;
+
+                if (this.type.isMutant || this.type.isGolden || this.type.isFish) {
+                    this.zigzagPhase += dt * 7.5;
+                    this.y += Math.sin(this.zigzagPhase) * 2.8;
+                }
+
+                if ((this.direction === 1 && this.x > canvas.width + this.size * 2 + 30) ||
+                    (this.direction === -1 && this.x < -this.size * 2 - 30)) {
+                    this.reset();
+                }
+            }
+
+            draw() {
+                ctx.save();
+                
+                const currentY = this.y + Math.sin(this.wobblePhase) * 5;
+                ctx.translate(this.x, currentY);
+                ctx.scale(this.direction === -1 ? -this.depthScale : this.depthScale, this.depthScale);
+
+                if (this.type.isGolden) {
+                    ctx.shadowColor = '#f59e0b';
+                    ctx.shadowBlur = 25;
+                } else if (this.type.isToxic) {
+                    ctx.shadowColor = '#fbbf24';
+                    ctx.shadowBlur = 22;
+                } else if (this.type.isMutant) {
+                    ctx.shadowColor = '#f43f5e';
+                    ctx.shadowBlur = 20;
+                } else if (this.type.isShipwreck) {
+                    ctx.shadowColor = '#c084fc';
+                    ctx.shadowBlur = 15;
+                }
+
+                const img = IMAGES[this.type.imgKey];
+                if (img && img.complete) {
+                    const aspect = img.naturalWidth / (img.naturalHeight || 1);
+                    const drawWidth = this.size * (aspect || 1);
+                    const drawHeight = this.size;
+                    ctx.drawImage(img, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+                    const net=IMAGES.NET;
+                    if(this.type.trapped && net?.complete && net.naturalWidth){
+                        const nw=drawWidth*1.05,nh=nw*net.naturalHeight/net.naturalWidth;
+                        ctx.save();ctx.globalAlpha=.65;ctx.drawImage(net,-nw/2,-nh/2,nw,nh);ctx.restore();
+                    }
+                }
+
+                ctx.restore();
+            }
+        }
+
+        // Particle Class
+        class Bubble {
+            constructor() {
+                this.reset();
+            }
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = canvas.height + Math.random() * 50;
+                this.z = Math.random() * 3 + 1;
+                this.radius = this.z * 2.4;
+                this.speed = Math.random() * 40 + this.z * 25;
+                this.alpha = Math.random() * 0.5 + 0.2;
+            }
+            update(dt) {
+                this.y -= this.speed * dt;
+                if (this.y < boat.y + 40) {
+                    this.reset();
+                }
+            }
+            draw() {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(163, 230, 53, ${this.alpha})`;
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function addFloatingText(text, x, y, color) {
+            floatingTexts.push({
+                text, x, y, color,
+                alpha: 1.0,
+                life: 1.1
+            });
+        }
+
+        function updateAndDrawFloatingTexts(dt) {
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const ft = floatingTexts[i];
+                ft.y -= 50 * dt;
+                ft.life -= dt * 1.0;
+                ft.alpha = Math.max(0, ft.life);
+
+                ctx.save();
+                ctx.font = '900 21px Pretendard, sans-serif';
+                ctx.fillStyle = ft.color;
+                ctx.globalAlpha = ft.alpha;
+                ctx.textAlign = 'center';
+                ctx.shadowColor = 'black';
+                ctx.shadowBlur = 8;
+                ctx.fillText(ft.text, ft.x, ft.y);
+                ctx.restore();
+
+                if (ft.life <= 0) floatingTexts.splice(i, 1);
+            }
+        }
+
+        function initObjects() {
+            seaObjects = [];
+            const count = Math.floor(canvas.width / 26);
+            for (let i = 0; i < Math.max(34, count); i++) {
+                seaObjects.push(new SeaObject());
+            }
+
+            bubbles = [];
+            for (let i = 0; i < 45; i++) {
+                bubbles.push(new Bubble());
+            }
+        }
+
+        function triggerEMP() {
+            sound.playEMPNoise();
+            empOverlay.style.opacity = '0.85';
+            gameContainer.classList.add('hazard-shake');
+            setTimeout(() => {
+                empOverlay.style.opacity = '0';
+                gameContainer.classList.remove('hazard-shake');
+            }, 300);
+        }
+
+        function update(dt) {
+            if (isPaused) return;
+
+            gameTime -= dt;
+            if (gameTime <= 0) {
+                gameTime = 0;
+                endGame();
+                return;
+            }
+            timeText.textContent = `${Math.ceil(gameTime)}s`;
+
+            const diffConfig = DIFFICULTIES[currentDiffKey];
+            empTimer += dt;
+            if (empTimer >= diffConfig.empInterval) {
+                empTimer = 0;
+                triggerEMP();
+            }
+
+            boat.x += (boat.targetX - boat.x) * 0.22;
+
+            let currentHookSpeed = hook.baseSpeed;
+            if (hook.caughtObject && hook.caughtObject.type.weight) {
+                currentHookSpeed /= hook.caughtObject.type.weight;
+            }
+
+            if (hook.state === 'IDLE') {
+                hook.x = boat.x;
+                hook.y = hook.startY;
+            } else if (hook.state === 'DOWN') {
+                hook.y += currentHookSpeed * dt;
+                if (hook.y >= hook.maxDepth) {
+                    hook.state = 'UP';
+                }
+            } else if (hook.state === 'UP') {
+                hook.y -= currentHookSpeed * dt;
+                if (hook.y <= hook.startY) {
+                    hook.state = 'IDLE';
+                    hook.y = hook.startY;
+                    
+                    if (hook.caughtObject) {
+                        const obj = hook.caughtObject;
+                        
+                        score += obj.type.score;
+                        score = Math.max(0, score);
+                        
+                        pollution += obj.type.pollutionChange; EcoFX.notify(obj.type.pollutionChange<=0?'good':'bad',`${obj.type.label||obj.type.name||"수거 결과"}: 오염 ${obj.type.pollutionChange>=0?'+':''}${obj.type.pollutionChange}, 점수 ${obj.type.score>=0?'+':''}${obj.type.score}`);
+                        pollution = Math.min(100, Math.max(0, pollution));
+
+                        if (obj.type.isMutant) {
+                            sound.playHazardTrap();
+                            triggerEMP();
+                            addFloatingText(`${obj.type.label}`, hook.x, hook.startY - 10, '#f43f5e');
+                        } else if (obj.type.isGolden) {
+                            sound.playGoldenGuardian();
+                            addFloatingText(`${obj.type.label}`, hook.x, hook.startY - 10, '#fbbf24');
+                        } else if (obj.type.isToxic) {
+                            sound.playGoldenGuardian();
+                            addFloatingText(`${obj.type.label}`, hook.x, hook.startY - 10, '#fbbf24');
+                        } else if (obj.type.trapped || obj.type.isShipwreck) {
+                            sound.playSaveTurtle();
+                            addFloatingText(`${obj.type.label} +${obj.type.score}`, hook.x, hook.startY - 10, '#34d399');
+                        } else if (obj.type.isFish) {
+                            sound.playHazardTrap();
+                            addFloatingText(`${obj.type.label}`, hook.x, hook.startY - 10, '#fb7185');
+                        } else {
+                            sound.playCatchTrash();
+                            addFloatingText(`+${obj.type.score}`, hook.x, hook.startY - 10, '#38bdf8');
+                        }
+
+                        scoreText.textContent = score;
+                        pollutionText.textContent = `${Math.round(pollution)}%`;
+                        pollutionBar.style.width = `${pollution}%`;
+
+                        obj.reset();
+                        hook.caughtObject = null;
+                    }
+                }
+            }
+
+            if (hook.caughtObject) {
+                hook.caughtObject.x = hook.x;
+                hook.caughtObject.y = hook.y + 18;
+            }
+
+            if ((hook.state === 'DOWN' || hook.state === 'UP') && !hook.caughtObject) {
+                let candidateObject = null;
+                let highestPriority = -1;
+
+                for (let obj of seaObjects) {
+                    if (obj.caught) continue;
+
+                    const dx = hook.x - obj.x;
+                    const dy = hook.y - obj.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    const hitRadiusMultiplier = obj.type.isGood ? 0.75 : 0.35;
+                    const effectiveRadius = hook.radius + (obj.size * hitRadiusMultiplier * obj.depthScale);
+
+                    if (dist < effectiveRadius) {
+                        const priority = obj.type.isGood ? 10 : 1;
+                        if (priority > highestPriority) {
+                            highestPriority = priority;
+                            candidateObject = obj;
+                        }
+                    }
+                }
+
+                if (candidateObject) {
+                    candidateObject.caught = true;
+                    hook.caughtObject = candidateObject;
+                    hook.state = 'UP';
+                }
+            }
+
+            seaObjects.forEach(obj => obj.update(dt));
+            bubbles.forEach(b => b.update(dt));
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const skyHeight = boat.y + 20;
+
+            let skyStartColor = '#1e1b4b';
+            let skyEndColor = '#4c1d95';
+            let seaStartColor = '#2e1065';
+            let seaMidColor = '#3b0764';
+            let seaEndColor = '#022c22';
+
+            if (pollution <= 30) {
+                skyStartColor = '#0284c7';
+                skyEndColor = '#0369a1';
+                seaStartColor = '#0284c7';
+                seaMidColor = '#0f766e';
+                seaEndColor = '#042f2e';
+            } else if (pollution <= 65) {
+                skyStartColor = '#0f766e';
+                skyEndColor = '#1e3a8a';
+                seaStartColor = '#1e3a8a';
+                seaMidColor = '#312e81';
+                seaEndColor = '#064e3b';
+            }
+
+            const skyGradient = ctx.createLinearGradient(0, 0, 0, skyHeight);
+            skyGradient.addColorStop(0, skyStartColor);
+            skyGradient.addColorStop(1, skyEndColor);
+            ctx.fillStyle = skyGradient;
+            ctx.fillRect(0, 0, canvas.width, skyHeight);
+
+            ctx.fillStyle = 'rgba(217, 249, 157, 0.9)';
+            ctx.shadowColor = '#a3e635';
+            ctx.shadowBlur = 30;
+            ctx.beginPath();
+            ctx.arc(canvas.width - 80, 32, 22, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            const seaGradient = ctx.createLinearGradient(0, skyHeight, 0, canvas.height);
+            seaGradient.addColorStop(0, seaStartColor);
+            seaGradient.addColorStop(0.5, seaMidColor);
+            seaGradient.addColorStop(1, seaEndColor);
+            ctx.fillStyle = seaGradient;
+            ctx.fillRect(0, skyHeight, canvas.width, canvas.height - skyHeight);
+
+            ctx.strokeStyle = pollution > 50 ? 'rgba(192, 132, 252, 0.7)' : 'rgba(56, 189, 248, 0.8)';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            for (let x = 0; x < canvas.width; x += 15) {
+                ctx.lineTo(x, skyHeight + Math.sin(x * 0.05 + Date.now() * 0.004) * 5);
+            }
+            ctx.stroke();
+
+            bubbles.forEach(b => b.draw());
+
+            seaObjects.sort((a, b) => b.depthLayer - a.depthLayer);
+            seaObjects.forEach(obj => obj.draw());
+
+            ctx.save();
+            ctx.strokeStyle = '#f8fafc';
+            ctx.lineWidth = 2.5;
+            ctx.shadowColor = '#10b981';
+            ctx.shadowBlur = 5;
+            ctx.beginPath();
+            ctx.moveTo(boat.x, boat.y + 8);
+            ctx.lineTo(hook.x, hook.y);
+            ctx.stroke();
+            ctx.restore();
+
+            ctx.save();
+            ctx.translate(hook.x, hook.y);
+            ctx.strokeStyle = '#6ee7b7';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.arc(0, -6, 8, 0, Math.PI);
+            ctx.lineTo(6, -14);
+            ctx.stroke();
+            ctx.restore();
+
+            ctx.save();
+            ctx.translate(boat.x, boat.y);
+
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            ctx.beginPath();
+            ctx.ellipse(0, 10, boat.width * 0.55, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.font = '28px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('🌊', -6, -14);
+
+            ctx.fillStyle = '#065f46';
+            ctx.beginPath();
+            ctx.moveTo(-boat.width / 2, -6);
+            ctx.lineTo(boat.width / 2, -6);
+            ctx.lineTo(boat.width / 2 - 12, boat.height / 2);
+            ctx.lineTo(-boat.width / 2 + 12, boat.height / 2);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = '#10b981';
+            ctx.fillRect(-boat.width / 2 - 3, -10, boat.width + 6, 6);
+
+            ctx.restore();
+
+            updateAndDrawFloatingTexts(1/60);
+        }
+
+        function gameLoop(timestamp) {
+            if (!isPlaying) return;
+
+            if (!lastTime) lastTime = timestamp;
+            const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
+            lastTime = timestamp;
+
+            if (!isPaused) {
+                update(dt);
+            }
+            draw();
+
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function togglePause() {
+            if (!isPlaying) return;
+            isPaused = !isPaused;
+
+            if (isPaused) {
+                pauseScreen.classList.remove('hidden');
+                pauseBtnText.textContent = '재개';
+                pauseIcon.className = 'fa-solid fa-play text-emerald-400';
+            } else {
+                pauseScreen.classList.add('hidden');
+                pauseBtnText.textContent = '일시정지';
+                pauseIcon.className = 'fa-solid fa-pause text-cyan-400';
+                lastTime = performance.now();
+            }
+        }
+
+        function startGame() {
+            sound.init();
+            const diffConfig = DIFFICULTIES[currentDiffKey];
+
+            score = 0;
+            pollution = diffConfig.startPollution;
+            gameTime = diffConfig.time;
+            isPlaying = true;
+            isPaused = false;
+            lastTime = 0;
+            empTimer = 0;
+
+            pauseBtnText.textContent = '일시정지';
+            pauseIcon.className = 'fa-solid fa-pause text-cyan-400';
+
+            scoreText.textContent = '0';
+            pollutionText.textContent = `${pollution}%`;
+            pollutionBar.style.width = `${pollution}%`;
+            timeText.textContent = `${gameTime}s`;
+
+            diffTag.textContent = diffConfig.name;
+            diffTag.className = `text-xs font-bold px-2.5 py-1 rounded-lg border ${diffConfig.badgeClass}`;
+
+            startScreen.classList.add('hidden');
+            endScreen.classList.add('hidden');
+            pauseScreen.classList.add('hidden');
+            hud.classList.remove('hidden');
+
+            resizeCanvas();
+            initObjects();
+
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function endGame() {
+ EcoFX.notify("action","임무 종료. 오염도와 점수를 확인하고 생물을 피하며 다시 수거하세요.");
+            isPlaying = false;
+            isPaused = false;
+            hud.classList.add('hidden');
+            pauseScreen.classList.add('hidden');
+            endScreen.classList.remove('hidden');
+
+            const diffConfig = DIFFICULTIES[currentDiffKey];
+            const isSuccess = pollution <= diffConfig.targetPollution;
+
+            document.getElementById('final-score').textContent = score;
+            document.getElementById('final-pollution').textContent = `${Math.round(pollution)}% (목표 ≤${diffConfig.targetPollution}%)`;
+
+            const endIcon = document.getElementById('end-icon');
+            const endTitle = document.getElementById('end-title');
+            const endSubtitle = document.getElementById('end-subtitle');
+
+            if (isSuccess) {
+                endIcon.textContent = '🐬👑✨';
+                endTitle.textContent = '바다 정화 성공!';
+                endTitle.className = 'text-2xl sm:text-4xl font-black text-emerald-400 mb-1';
+                endSubtitle.textContent = `[${diffConfig.name}] 바다 정화 임무를 훌륭히 완수하였습니다!`;
+            } else {
+                endIcon.textContent = '💀☢️🥀';
+                endTitle.textContent = '정화 실패...';
+                endTitle.className = 'text-2xl sm:text-4xl font-black text-rose-500 mb-1';
+                endSubtitle.textContent = `목표 오염도(${diffConfig.targetPollution}% 이하) 도달에 실패했습니다.`;
+            }
+
+            const randomTip = ENV_TIPS[Math.floor(Math.random() * ENV_TIPS.length)];
+            document.getElementById('env-tip').textContent = randomTip;
+        }
+
+        function showStartScreen() {
+            isPlaying = false;
+            isPaused = false;
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            hud.classList.add('hidden');
+            endScreen.classList.add('hidden');
+            pauseScreen.classList.add('hidden');
+            startScreen.classList.remove('hidden');
+        }
+
+        const diffBtns = document.querySelectorAll('.diff-btn');
+        diffBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                diffBtns.forEach(b => {
+                    b.classList.remove('active-diff', 'ring-2', 'ring-emerald-500/30', 'border-emerald-500', 'border-amber-500', 'border-rose-500');
+                    b.classList.add('border-slate-700');
+                });
+                currentDiffKey = btn.getAttribute('data-diff');
+                const borderColor = currentDiffKey === 'EASY' ? 'border-emerald-500' : (currentDiffKey === 'NORMAL' ? 'border-amber-500' : 'border-rose-500');
+                btn.classList.add('active-diff', 'ring-2', borderColor);
+                btn.classList.remove('border-slate-700');
+            });
+        });
+
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+        document.getElementById('in-game-restart-btn').addEventListener('click', startGame);
+        document.getElementById('home-btn').addEventListener('click', showStartScreen);
+        
+        // Pause & Change Difficulty Controls Event Listeners
+        document.getElementById('in-game-pause-btn').addEventListener('click', togglePause);
+        document.getElementById('resume-btn').addEventListener('click', togglePause);
+        document.getElementById('in-game-diff-btn').addEventListener('click', showStartScreen);
+        document.getElementById('pause-change-diff-btn').addEventListener('click', showStartScreen);
+
+        window.onload = () => {
+            resizeCanvas();
+            boat.x = canvas.width / 2;
+            boat.targetX = canvas.width / 2;
+            draw();
+        };
+    </script>
+<script>
+EcoFX.mount({title:"쓰레기 수거와 생물 보호",goal:"쓰레기는 회수하고 생물은 피하세요. 점수뿐 아니라 오염도를 확인하세요.",note:"",read:()=>({label:'오염 '+Math.round(pollution)+'% · 기록',progress:100-pollution,detail:'오염도 '+Math.round(pollution)+'% · 점수 '+score+' · 남은 시간 '+Math.ceil(gameTime)+'초. 생물 오포획은 점수와 오염도에 불이익을 줍니다.'}),actions:[]});
+</script>
+</body>
+</html>

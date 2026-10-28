@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta name="referrer" content="no-referrer">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Eco Slug: Biodiversity Guardian - Elite Hunter Edition</title>
+    <link rel="stylesheet" href="vendor/tailwind.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@400;700;900&display=swap');
+
+        body {
+            background-color: #050505;
+            color: #fff;
+            font-family: 'Noto Sans KR', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .arcade-font {
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+        }
+
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+            box-shadow: 0 0 30px rgba(34, 197, 94, 0.25);
+            background: #0f172a;
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        .overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(4px);
+            z-index: 10;
+        }
+
+        .btn {
+            font-family: 'Press Start 2P', cursive;
+            padding: 14px 28px;
+            margin-top: 20px;
+            background: #22c55e;
+            color: white;
+            border: 4px solid #15803d;
+            cursor: pointer;
+            box-shadow: 4px 4px 0 #000;
+            transition: all 0.1s;
+        }
+
+        .btn:active {
+            transform: translate(4px, 4px);
+            box-shadow: 0px 0px 0 #000;
+        }
+    </style>
+<style>.hidden { display: none !important; }</style>
+<script src="eco-feedback.js"></script>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas" width="960" height="540"></canvas>
+
+    <!-- Start Overlay -->
+    <div id="startScreen" class="overlay">
+        <h1 class="text-3xl md:text-5xl text-green-400 arcade-font mb-4 text-center">ECO SLUG</h1>
+        <h2 class="text-md md:text-xl text-yellow-300 font-bold mb-6">BIODIVERSITY GUARDIAN - ELITE HUNTER EDITION</h2>
+        
+        <div class="bg-gray-900 border-2 border-green-500 p-5 rounded text-sm max-w-xl text-gray-300 space-y-3">
+            <p class="text-cyan-300 font-bold">[조작 안내]</p>
+            <p>◀ ▶ : 이동 (지상 / 수중 수영)</p>
+            <p>▼ : 지상 물웅덩이/구멍에서 물속으로 잠수 Drop</p>
+            <p>X : 점프 (물속에서는 헤엄치며 상승)</p>
+            <p>Z : 근접 펀치 (물속의 적도 타격 가능)</p>
+            <p>C : 회전 스파이럴 어택 (광역기, 자생종 오폭 주의)</p>
+            <hr class="border-gray-700 my-2">
+            <p class="text-red-400 font-bold">[임무: 토착종 보호·지정 외래종 대응 각각 80% 이상]</p>
+            <p>붉은색 범위 장판/경고선 표시 후 각 엘리트 몹이 특수 스킬을 사용합니다!</p>
+        </div>
+
+        <button id="startBtn" class="btn text-lg">START MISSION</button>
+    </div>
+
+    <!-- Result Overlay -->
+    <div id="resultScreen" class="overlay hidden">
+        <h1 id="resultTitle" class="text-4xl text-yellow-400 arcade-font mb-4">MISSION RESULT</h1>
+        <p id="resultSub" class="text-lg text-gray-300 mb-6 text-center">결과 요약</p>
+        <button id="restartBtn" class="btn text-md">RETRY</button>
+    </div>
+</div>
+
+<script>
+/**
+ * Eco Slug: Refactored Core Player, Physics, Hitbox & Elite Warning Skill System
+ */
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const GAME_WIDTH = 960;
+const GAME_HEIGHT = 540;
+const LEVEL_LENGTH = 3200;
+const GROUND_Y = 360;  
+const WATER_Y = 390;   
+const BOTTOM_Y = 510;  
+
+// Water Gaps
+const WATER_GAPS = [
+    { start: 700, end: 950 },
+    { start: 1500, end: 1800 },
+    { start: 2300, end: 2600 }
+];
+
+// Reeds / Underwater Platforms
+const REEDS = [
+    { x: 800, y: 410, w: 50, h: 100 },
+    { x: 880, y: 430, w: 50, h: 80 },
+    { x: 1600, y: 410, w: 60, h: 100 },
+    { x: 1700, y: 440, w: 50, h: 70 },
+    { x: 2400, y: 420, w: 50, h: 90 },
+    { x: 2500, y: 400, w: 60, h: 110 }
+];
+
+let gameState = 'START';
+let initialNative=0, initialInvasive=0;
+function ecoStatus(){const native=creatures.filter(c=>c.isNative&&c.hp>0).length,inv=creatures.filter(c=>!c.isNative&&c.hp>0).length;return {native,inv,protected:initialNative?native/initialNative:1,managed:initialInvasive?1-inv/initialInvasive:1};}
+let camera = { x: 0, y: 0 };
+let keys = { left: false, right: false, down: false, z: false, x: false, c: false };
+
+let player;
+let activeHitboxes = [];
+let creatures = [];
+let particles = [];
+let floatingTexts = [];
+
+function checkCollision(rect1, rect2) {
+    return (
+        rect1.x < rect2.x + rect2.w &&
+        rect1.x + rect1.w > rect2.x &&
+        rect1.y < rect2.y + rect2.h &&
+        rect1.y + rect1.h > rect2.y
+    );
+}
+
+function isOverWaterGap(x, w = 0) {
+    const center = x + w / 2;
+    return WATER_GAPS.some(gap => center >= gap.start && center <= gap.end);
+}
+
+function createParticles(x, y, color, count = 6) {
+    for (let i = 0; i < count; i++) {
+        particles.push({
+            x: x,
+            y: y,
+            vx: (Math.random() - 0.5) * 6,
+            vy: (Math.random() - 0.5) * 6,
+            color: color,
+            life: 20,
+            size: 3 + Math.random() * 3
+        });
+    }
+}
+
+function addFloatingText(text, x, y, color = '#ffffff') {
+    floatingTexts.push({ text, x, y, color, life: 40 });
+}
+
+// --- Player Class ---
+const guardianSprite=new Image();guardianSprite.src='assets/generated/guardian.png';
+const marshScene=new Image();marshScene.src='assets/generated/marsh.png';
+class Player {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.w = 56;
+        this.h = 76;
+        this.vx = 0;
+        this.vy = 0;
+
+        this.moveSpeed = 6.0;
+        this.jumpPower = -13.5;
+        this.gravity = 0.65;
+
+        this.grounded = false;
+        this.inWater = false;
+        this.dir = 1; 
+
+        this.hp = 300;
+        this.maxHp = 300;
+
+        this.state = 'IDLE'; 
+        this.actionState = 'NONE'; 
+        this.actionTimer = 0;
+        this.punchCooldown = 0;
+        this.spinCooldown = 0;
+        this.animTimer = 0;
+    }
+
+    update() {
+        this.animTimer++;
+
+        const feetY = this.y + this.h;
+        this.inWater = feetY > WATER_Y + 10;
+
+        const currentSpeed = this.inWater ? this.moveSpeed * 0.55 : this.moveSpeed;
+        const currentGravity = this.inWater ? 0.25 : this.gravity;
+
+        if (this.punchCooldown > 0) this.punchCooldown--;
+        if (this.spinCooldown > 0) this.spinCooldown--;
+
+        if (this.actionTimer > 0) {
+            this.actionTimer--;
+            if (this.actionTimer <= 0) {
+                this.actionState = 'NONE';
+            }
+        }
+
+        if (keys.c && this.spinCooldown === 0 && this.actionState === 'NONE') {
+            this.startSpin();
+        } else if (keys.z && this.punchCooldown === 0 && this.actionState === 'NONE') {
+            this.startPunch();
+        }
+
+        if (this.actionState === 'SPINNING') {
+            this.vx = this.dir * 4.5;
+        } else {
+            if (keys.left) {
+                this.vx = -currentSpeed;
+                this.dir = -1;
+            } else if (keys.right) {
+                this.vx = currentSpeed;
+                this.dir = 1;
+            } else {
+                this.vx *= this.inWater ? 0.8 : 0.65;
+            }
+        }
+
+        if (keys.down && !this.inWater && feetY >= GROUND_Y - 5 && feetY <= GROUND_Y + 20) {
+            this.y += 15;
+            this.vy = 4;
+            this.grounded = false;
+        } else if (keys.x) {
+            if (this.grounded) {
+                this.vy = this.jumpPower;
+                this.grounded = false;
+                createParticles(this.x + this.w / 2, this.y + this.h, '#e2e8f0', 8);
+            } else if (this.inWater && this.vy > -6) {
+                this.vy = -6.0;
+                createParticles(this.x + this.w / 2, this.y + this.h, '#38bdf8', 5);
+            }
+        }
+
+        this.vy += currentGravity;
+        if (this.inWater) {
+            this.vy = Math.max(-6.5, Math.min(4.5, this.vy));
+        }
+
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // Ground collisions
+        this.grounded = false;
+
+        const overGap = isOverWaterGap(this.x, this.w);
+        if (!overGap && !keys.down && this.y + this.h >= GROUND_Y && this.y + this.h <= GROUND_Y + 25 && this.vy >= 0) {
+            this.y = GROUND_Y - this.h;
+            this.vy = 0;
+            this.grounded = true;
+        }
+
+        // Underwater Reed Platforms
+        REEDS.forEach(reed => {
+            if (this.vy >= 0 && this.x + this.w > reed.x && this.x < reed.x + reed.w) {
+                if (this.y + this.h >= reed.y && this.y + this.h <= reed.y + 18) {
+                    this.y = reed.y - this.h;
+                    this.vy = 0;
+                    this.grounded = true;
+                }
+            }
+        });
+
+        if (this.y + this.h >= BOTTOM_Y) {
+            this.y = BOTTOM_Y - this.h;
+            this.vy = 0;
+            this.grounded = true;
+        }
+
+        if (this.x < 0) this.x = 0;
+        if (this.x > LEVEL_LENGTH - this.w) this.x = LEVEL_LENGTH - this.w;
+
+        if (this.actionState === 'SPINNING') {
+            this.state = 'SPIN';
+        } else if (this.actionState === 'PUNCHING') {
+            this.state = 'PUNCH';
+        } else if (!this.grounded) {
+            this.state = 'JUMP';
+        } else if (Math.abs(this.vx) > 0.5) {
+            this.state = 'WALK';
+        } else {
+            this.state = 'IDLE';
+        }
+    }
+
+    startPunch() {
+        this.actionState = 'PUNCHING';
+        this.actionTimer = 12;
+        this.punchCooldown = 18;
+
+        const hbWidth = 80;
+        const hbHeight = 110; 
+
+        activeHitboxes.push(new DynamicHitbox({
+            owner: this,
+            w: hbWidth,
+            h: hbHeight,
+            getOffset: (p) => ({
+                x: p.dir === 1 ? p.w : -hbWidth,
+                y: -10 
+            }),
+            damage: 45,
+            duration: 10,
+            type: 'PUNCH'
+        }));
+    }
+
+    startSpin() {
+        this.actionState = 'SPINNING';
+        this.actionTimer = 24;
+        this.spinCooldown = 45;
+
+        const hbWidth = 160;
+        const hbHeight = 160;
+
+        activeHitboxes.push(new DynamicHitbox({
+            owner: this,
+            w: hbWidth,
+            h: hbHeight,
+            getOffset: (p) => ({
+                x: (p.w - hbWidth) / 2,
+                y: (p.h - hbHeight) / 2 - 10
+            }),
+            damage: 75,
+            duration: 22,
+            type: 'SPIN'
+        }));
+    }
+
+    takeDamage(amount) {
+        this.hp -= amount;
+        addFloatingText(`-${amount}`, this.x + 20, this.y - 10, '#ef4444');
+        createParticles(this.x + this.w / 2, this.y + this.h / 2, '#ef4444', 10);
+        if (this.hp <= 0) {
+            this.hp = 0;
+            gameState = 'GAMEOVER';
+            document.getElementById('resultTitle').innerText = "WRESTLER DEFEATED";
+            document.getElementById('resultTitle').className = "text-4xl text-red-500 arcade-font mb-4";
+            document.getElementById('resultSub').innerText = "Health dropped to 0";
+            document.getElementById('resultScreen').classList.remove('hidden');
+        }
+    }
+
+    draw() {
+        ctx.save();
+        ctx.translate(this.x + this.w / 2 - camera.x, this.y + this.h / 2);
+        ctx.scale(this.dir, 1);
+
+        if (this.inWater) ctx.globalAlpha = 0.85;
+        if(guardianSprite.complete&&guardianSprite.naturalWidth){if(this.state==='SPIN')ctx.rotate(this.animTimer*.45);const bob=this.state==='WALK'?Math.sin(this.animTimer*.4)*2:0;ctx.drawImage(guardianSprite,212,97,641,1314,-21,-48+bob,42,86);if(this.state==='PUNCH'){ctx.strokeStyle='#ffe19c';ctx.lineWidth=4;ctx.beginPath();ctx.arc(27,-8,20,-.8,.8);ctx.stroke();}ctx.restore();return;}
+
+        if (this.state === 'SPIN') {
+            ctx.rotate(this.animTimer * 0.45);
+            ctx.fillStyle = '#f59e0b';
+            ctx.fillRect(-this.w / 2, -this.h / 2, this.w, this.h);
+            ctx.fillStyle = '#fef08a';
+            ctx.fillRect(-this.w / 4, -this.h / 4, this.w / 2, this.h / 2);
+        } else {
+            ctx.fillStyle = '#dc2626';
+            ctx.fillRect(-this.w / 2 + 4, -this.h / 2 + 16, this.w - 8, this.h - 32);
+
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(-12, -this.h / 2, 24, 18);
+
+            const walkCycle = this.state === 'WALK' ? Math.sin(this.animTimer * 0.4) * 8 : 0;
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(-this.w / 2 + 6, this.h / 2 - 16 + walkCycle, 14, 16);
+            ctx.fillRect(this.w / 2 - 20, this.h / 2 - 16 - walkCycle, 14, 16);
+
+            if (this.state === 'PUNCH') {
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(12, -8, 30, 20);
+            }
+        }
+
+        ctx.restore();
+    }
+}
+
+class DynamicHitbox {
+    constructor(config) {
+        this.owner = config.owner;
+        this.w = config.w;
+        this.h = config.h;
+        this.getOffset = config.getOffset;
+        this.damage = config.damage;
+        this.duration = config.duration;
+        this.type = config.type;
+
+        this.markedForDeletion = false;
+        this.hitTargets = new Set();
+
+        this.syncPosition();
+    }
+
+    syncPosition() {
+        const offset = this.getOffset(this.owner);
+        this.x = this.owner.x + offset.x;
+        this.y = this.owner.y + offset.y;
+    }
+
+    update() {
+        this.duration--;
+        if (this.duration <= 0) {
+            this.markedForDeletion = true;
+            return;
+        }
+
+        this.syncPosition();
+
+        creatures.forEach(target => {
+            if (!this.hitTargets.has(target) && checkCollision(this, target)) {
+                target.takeDamage(this.damage, this.type);
+                this.hitTargets.add(target);
+                createParticles(target.x + target.w / 2, target.y + target.h / 2, '#ef4444', 8);
+            }
+        });
+    }
+
+    draw() {
+        ctx.save();
+        ctx.fillStyle = this.type === 'SPIN' ? 'rgba(245, 158, 11, 0.35)' : 'rgba(239, 68, 68, 0.4)';
+        ctx.strokeStyle = this.type === 'SPIN' ? '#f59e0b' : '#ef4444';
+        ctx.lineWidth = 2;
+
+        ctx.fillRect(this.x - camera.x, this.y, this.w, this.h);
+        ctx.strokeRect(this.x - camera.x, this.y, this.w, this.h);
+        ctx.restore();
+    }
+}
+
+class Creature {
+    constructor(x, y, type, isNative = false, isElite = false, eliteType = 'NUTRIA') {
+        this.x = x;
+        this.y = y;
+        this.type = type;
+        this.isNative = isNative;
+        this.isElite = isElite;
+        this.eliteType = eliteType; 
+
+        this.w = isElite ? (eliteType === 'TURTLE' ? 80 : 70) : 44;
+        this.h = isElite ? (eliteType === 'TURTLE' ? 55 : 70) : 44;
+        
+        this.hp = isElite ? 350 : (isNative ? 30 : 40);
+        this.maxHp = this.hp;
+
+        this.vx = (Math.random() - 0.5) * (isElite ? 2.0 : 2.5);
+        this.dir = 1;
+
+        this.isPreparingSkill = false;
+        this.skillWarmup = 0;
+        this.maxSkillWarmup = 60; 
+        this.skillCooldown = 180 + Math.random() * 120;
+        this.skillActiveTimer = 0;
+        this.warningArea = null;
+    }
+
+    takeDamage(amount, attackType) { EcoFX.notify(this.isNative?'bad':'action',this.isNative?'토착종 오폭! 공격 범위를 줄여 보호하세요.':'지정 대상에 대응 중 — 토착종이 가까이 있는지 확인하세요.');
+        this.hp -= amount;
+        addFloatingText(`-${amount}`, this.x + 10, this.y - 10, this.isNative ? '#f87171' : '#facc15');
+
+        if (this.hp <= 0) {
+            if (this.isNative) {
+                addFloatingText("NATIVE LOST!", this.x, this.y - 20, '#ef4444');
+            } else if (this.isElite) {
+                addFloatingText("ELITE SLAIN!", this.x, this.y - 20, '#fbbf24');
+            } else {
+                addFloatingText("CLEARED!", this.x, this.y - 20, '#4ade80');
+            }
+        }
+    }
+
+    update() {
+        if (this.isElite) {
+            this.updateEliteAI();
+        } else {
+            this.x += this.vx;
+            if (this.x < 100 || this.x > LEVEL_LENGTH - 100) {
+                this.vx *= -1;
+            }
+        }
+    }
+
+    updateEliteAI() {
+        const distToPlayer = Math.abs(player.x - this.x);
+        this.dir = player.x > this.x ? 1 : -1;
+
+        if (this.skillCooldown > 0) this.skillCooldown--;
+
+        if (distToPlayer < 320 && this.skillCooldown <= 0 && !this.isPreparingSkill && this.skillActiveTimer <= 0) {
+            this.isPreparingSkill = true;
+            this.skillWarmup = this.maxSkillWarmup;
+            this.vx = 0;
+            this.setupWarningArea();
+        }
+
+        if (this.isPreparingSkill) {
+            this.skillWarmup--;
+            this.updateWarningArea();
+
+            if (this.skillWarmup <= 0) {
+                this.isPreparingSkill = false;
+                this.executeSkill();
+                this.skillCooldown = 220;
+            }
+            return;
+        }
+
+        if (this.skillActiveTimer > 0) {
+            this.skillActiveTimer--;
+            if (this.eliteType === 'TURTLE') {
+                this.x += this.dir * 12;
+            }
+            this.checkSkillImpact();
+            return;
+        }
+
+        this.vx = this.dir * 1.8;
+        this.x += this.vx;
+
+        if (this.x < 100) this.x = 100;
+        if (this.x > LEVEL_LENGTH - 100) this.x = LEVEL_LENGTH - 100;
+    }
+
+    setupWarningArea() {
+        if (this.eliteType === 'NUTRIA') {
+            this.warningArea = { type: 'BOX', w: 180, h: 180, ox: -55, oy: -55 };
+        } else if (this.eliteType === 'TURTLE') {
+            this.warningArea = { type: 'LINE', range: 350, height: 60 };
+        } else if (this.eliteType === 'BASS') {
+            this.warningArea = { type: 'FRONT', w: 220, h: 140, ox: this.dir === 1 ? this.w : -220, oy: -35 };
+        }
+    }
+
+    updateWarningArea() {
+        if (!this.warningArea) return;
+        if (this.eliteType === 'BASS') {
+            this.warningArea.ox = this.dir === 1 ? this.w : -220;
+        }
+    }
+
+    executeSkill() {
+        if (this.eliteType === 'NUTRIA') {
+            this.skillActiveTimer = 30;
+            addFloatingText("WHIRLWIND!", this.x, this.y - 25, '#dc2626');
+        } else if (this.eliteType === 'TURTLE') {
+            this.skillActiveTimer = 20;
+            addFloatingText("SHELL CHARGE!", this.x, this.y - 25, '#f59e0b');
+        } else if (this.eliteType === 'BASS') {
+            this.skillActiveTimer = 15;
+            addFloatingText("WATER BLAST!", this.x, this.y - 25, '#38bdf8');
+            createParticles(this.x + this.w / 2, this.y + this.h / 2, '#38bdf8', 25);
+        }
+    }
+
+    checkSkillImpact() {
+        let hitRect = null;
+        if (this.eliteType === 'NUTRIA') {
+            hitRect = { x: this.x - 55, y: this.y - 55, w: 180, h: 180 };
+        } else if (this.eliteType === 'TURTLE') {
+            hitRect = { x: this.x, y: this.y, w: this.w, h: this.h };
+        } else if (this.eliteType === 'BASS') {
+            const ox = this.dir === 1 ? this.w : -220;
+            hitRect = { x: this.x + ox, y: this.y - 35, w: 220, h: 140 };
+        }
+
+        if (hitRect && checkCollision(hitRect, player)) {
+            player.takeDamage(this.eliteType === 'TURTLE' ? 35 : 25);
+        }
+    }
+
+    draw() {
+        ctx.save();
+
+        if (this.isPreparingSkill && this.warningArea) {
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.45)';
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 3;
+
+            const alphaPulse = 0.3 + Math.sin(Date.now() * 0.02) * 0.25;
+            ctx.fillStyle = `rgba(239, 68, 68, ${alphaPulse})`;
+
+            if (this.warningArea.type === 'BOX') {
+                const wx = this.x + this.warningArea.ox - camera.x;
+                const wy = this.y + this.warningArea.oy;
+                ctx.fillRect(wx, wy, this.warningArea.w, this.warningArea.h);
+                ctx.strokeRect(wx, wy, this.warningArea.w, this.warningArea.h);
+            } else if (this.warningArea.type === 'LINE') {
+                const lx = this.dir === 1 ? this.x - camera.x : this.x - camera.x - this.warningArea.range;
+                const ly = this.y + 5;
+                ctx.fillRect(lx, ly, this.warningArea.range + this.w, this.warningArea.height);
+                ctx.strokeRect(lx, ly, this.warningArea.range + this.w, this.warningArea.height);
+            } else if (this.warningArea.type === 'FRONT') {
+                const fx = this.x + this.warningArea.ox - camera.x;
+                const fy = this.y + this.warningArea.oy;
+                ctx.fillRect(fx, fy, this.warningArea.w, this.warningArea.h);
+                ctx.strokeRect(fx, fy, this.warningArea.w, this.warningArea.h);
+            }
+
+            ctx.fillStyle = '#facc15';
+            ctx.font = '10px "Press Start 2P"';
+            ctx.fillText('⚠️ DANGER', this.x - camera.x, this.y - 30);
+        }
+
+        if (this.isElite) {
+            if (this.eliteType === 'NUTRIA') ctx.fillStyle = '#991b1b';
+            else if (this.eliteType === 'TURTLE') ctx.fillStyle = '#b45309';
+            else if (this.eliteType === 'BASS') ctx.fillStyle = '#1e3a8a';
+        } else {
+            ctx.fillStyle = this.isNative ? '#22c55e' : '#ea580c';
+        }
+
+        ctx.beginPath();ctx.ellipse(this.x-camera.x+this.w/2,this.y+this.h/2,this.w/2,this.h/3,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.moveTo(this.x-camera.x+this.w*.8,this.y+this.h/2);ctx.lineTo(this.x-camera.x+this.w+9,this.y+this.h*.2);ctx.lineTo(this.x-camera.x+this.w+9,this.y+this.h*.8);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(this.x-camera.x+this.w*.25,this.y+this.h*.4,4,0,Math.PI*2);ctx.fill();
+
+        if (this.isElite) {
+            ctx.strokeStyle = this.skillActiveTimer > 0 ? '#ef4444' : '#f59e0b';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(this.x - camera.x - 2, this.y - 2, this.w + 4, this.h + 4);
+        }
+
+        ctx.fillStyle = '#000';
+        ctx.fillRect(this.x - camera.x, this.y - 12, this.w, 7);
+        ctx.fillStyle = this.isNative ? '#3b82f6' : (this.isElite ? '#e11d48' : '#ef4444');
+        ctx.fillRect(this.x - camera.x, this.y - 12, (Math.max(0, this.hp) / this.maxHp) * this.w, 7);
+
+        ctx.restore();
+    }
+}
+
+function calculateDiversityIndex() {
+    let total = creatures.length;
+    if (total === 0) return 0;
+
+    let counts = {};
+    creatures.forEach(c => {
+        counts[c.type] = (counts[c.type] || 0) + 1;
+    });
+
+    let hIndex = 0;
+    Object.keys(counts).forEach(type => {
+        let p = counts[type] / total;
+        if (p > 0) hIndex -= p * Math.log(p);
+    });
+
+    return hIndex;
+}
+
+function initLevel() {
+ EcoFX.notify('start','토착종 80% 이상 보호 + 지정 외래종 80% 이상 대응 후 깃발 도착이 목표입니다.');
+    player = new Player(100, GROUND_Y - 80);
+    activeHitboxes = [];
+    particles = [];
+    floatingTexts = [];
+    creatures = []; initialNative=0;initialInvasive=0;
+
+    const eliteTypes = ['NUTRIA', 'TURTLE', 'BASS'];
+    let eliteIdx = 0;
+
+    for (let i = 350; i < LEVEL_LENGTH - 400; i += 180) {
+        let isNative = Math.random() > 0.55;
+        let isElite = !isNative && Math.random() > 0.45; 
+        let spawnY = isNative ? WATER_Y + 20 : GROUND_Y - 70;
+
+        if (isOverWaterGap(i, 50)) {
+            spawnY = WATER_Y + 30;
+        }
+
+        const selectedEliteType = eliteTypes[eliteIdx % eliteTypes.length];
+        if (isElite) eliteIdx++;
+
+        creatures.push(new Creature(
+            i, 
+            spawnY, 
+            isNative ? 'native_fish' : (isElite ? `elite_${selectedEliteType.toLowerCase()}` : 'invasive_bass'), 
+            isNative, 
+            isElite,
+            selectedEliteType
+        ));
+    }
+}
+
+function update() {
+    if (gameState !== 'PLAYING') return;
+
+    if(!initialNative && !initialInvasive){initialNative=creatures.filter(c=>c.isNative).length;initialInvasive=creatures.filter(c=>!c.isNative).length;}
+    player.update();
+
+    camera.x = player.x - GAME_WIDTH / 3;
+    camera.x = Math.max(0, Math.min(camera.x, LEVEL_LENGTH - GAME_WIDTH));
+
+    activeHitboxes.forEach(hb => hb.update());
+    activeHitboxes = activeHitboxes.filter(hb => !hb.markedForDeletion);
+
+    creatures.forEach(c => c.update());
+    creatures = creatures.filter(c => c.hp > 0);
+
+    particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life--;
+    });
+    particles = particles.filter(p => p.life > 0);
+
+    floatingTexts.forEach(ft => {
+        ft.y -= 0.8;
+        ft.life--;
+    });
+    floatingTexts = floatingTexts.filter(ft => ft.life > 0);
+
+    if (player.x >= LEVEL_LENGTH - 120) {
+        const hIndex = calculateDiversityIndex();
+        if (ecoStatus().protected >= .8 && ecoStatus().managed >= .8) {
+            gameState = 'CLEAR'; EcoFX.notify('win','토착종 보호와 지정 외래종 대응 목표를 함께 달성했습니다.');
+            document.getElementById('resultTitle').innerText = "MISSION COMPLETE!";
+            document.getElementById('resultTitle').className = "text-4xl text-green-400 arcade-font mb-4";
+            document.getElementById('resultSub').innerText = `토착종 보호 ${Math.round(ecoStatus().protected*100)}% · 지정 외래종 대응 ${Math.round(ecoStatus().managed*100)}%`;
+        } else {
+            gameState = 'GAMEOVER';
+            document.getElementById('resultTitle').innerText = "보호 목표 미달";
+            document.getElementById('resultTitle').className = "text-4xl text-red-500 arcade-font mb-4";
+            document.getElementById('resultSub').innerText = `토착종 보호 ${Math.round(ecoStatus().protected*100)}% / 대응 ${Math.round(ecoStatus().managed*100)}% — 각각 80% 이상 필요`;
+        }
+        document.getElementById('resultScreen').classList.remove('hidden');
+    }
+}
+
+function draw() {
+    ctx.fillStyle = '#090d16';
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    if(marshScene.complete&&marshScene.naturalWidth){const h=GAME_HEIGHT,w=h*marshScene.width/marshScene.height,offset=(camera.x*.12)%w;for(let x=-offset;x<GAME_WIDTH;x+=w)ctx.drawImage(marshScene,x,0,w,h);ctx.fillStyle='rgba(4,12,22,.18)';ctx.fillRect(0,0,GAME_WIDTH,GAME_HEIGHT);}
+
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0 - camera.x, GROUND_Y, LEVEL_LENGTH, BOTTOM_Y - GROUND_Y);
+
+    ctx.fillStyle = '#22c55e';
+    ctx.fillRect(0 - camera.x, GROUND_Y, LEVEL_LENGTH, 10);
+
+    WATER_GAPS.forEach(gap => {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(gap.start - camera.x, GROUND_Y, gap.end - gap.start, BOTTOM_Y - GROUND_Y);
+
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(gap.start - camera.x - 6, GROUND_Y - 25, 12, 25);
+        ctx.fillRect(gap.end - camera.x - 6, GROUND_Y - 25, 12, 25);
+
+        ctx.fillStyle = '#facc15';
+        ctx.font = '10px "Press Start 2P"';
+        ctx.fillText('⚠️ GAP', gap.start + 20 - camera.x, GROUND_Y - 12);
+    });
+
+    ctx.fillStyle = 'rgba(14, 165, 233, 0.55)';
+    ctx.fillRect(0 - camera.x, WATER_Y, LEVEL_LENGTH, BOTTOM_Y - WATER_Y);
+
+    REEDS.forEach(reed => {
+        ctx.fillStyle = '#15803d';
+        ctx.fillRect(reed.x - camera.x, reed.y, reed.w, reed.h);
+        ctx.fillStyle = '#4ade80';
+        ctx.fillRect(reed.x - camera.x, reed.y, reed.w, 8);
+    });
+
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(LEVEL_LENGTH - 100 - camera.x, GROUND_Y - 120, 12, 120);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(LEVEL_LENGTH - 100 - camera.x, GROUND_Y - 120, 65, 40);
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px "Press Start 2P"';
+    ctx.fillText('GOAL', LEVEL_LENGTH - 95 - camera.x, GROUND_Y - 95);
+
+    creatures.forEach(c => c.draw());
+    player.draw();
+    activeHitboxes.forEach(hb => hb.draw());
+
+    particles.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x - camera.x, p.y, p.size, p.size);
+    });
+
+    floatingTexts.forEach(ft => {
+        ctx.fillStyle = ft.color;
+        ctx.font = '12px "Press Start 2P"';
+        ctx.fillText(ft.text, ft.x - camera.x, ft.y);
+    });
+
+    if (gameState === 'PLAYING') {
+        const hIndex = calculateDiversityIndex();
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px "Press Start 2P"';
+        ctx.fillText(`STATE: ${player.state}`, 20, 30);
+
+        // Player HP Bar
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(20, 45, 180, 14);
+        ctx.fillStyle = '#22c55e';
+        ctx.fillRect(20, 45, Math.max(0, (player.hp / player.maxHp) * 180), 14);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(20, 45, 180, 14);
+
+        // Shannon-Wiener Index HUD
+        ctx.fillStyle = '#facc15';
+        ctx.font='13px sans-serif'; ctx.fillText(`토착종 ${Math.round(ecoStatus().protected*100)}% / 대응 ${Math.round(ecoStatus().managed*100)}%`, GAME_WIDTH - 260, 30);
+    }
+}
+
+function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+// Input Handlers
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') keys.left = true;
+    if (e.key === 'ArrowRight') keys.right = true;
+    if (e.key === 'ArrowDown') keys.down = true;
+    if (e.key === 'z' || e.key === 'Z') keys.z = true;
+    if (e.key === 'x' || e.key === 'X') keys.x = true;
+    if (e.key === 'c' || e.key === 'C') keys.c = true;
+});
+
+window.addEventListener('keyup', (e) => {
+    if (e.key === 'ArrowLeft') keys.left = false;
+    if (e.key === 'ArrowRight') keys.right = false;
+    if (e.key === 'ArrowDown') keys.down = false;
+    if (e.key === 'z' || e.key === 'Z') keys.z = false;
+    if (e.key === 'x' || e.key === 'X') keys.x = false;
+    if (e.key === 'c' || e.key === 'C') keys.c = false;
+});
+
+document.getElementById('startBtn').addEventListener('click', () => {
+    document.getElementById('startScreen').classList.add('hidden');
+    gameState = 'PLAYING';
+    initLevel();
+});
+
+document.getElementById('restartBtn').addEventListener('click', () => {
+    document.getElementById('resultScreen').classList.add('hidden');
+    gameState = 'PLAYING';
+    initLevel();
+});
+
+// Start loop
+initLevel();
+gameLoop();
+</script>
+<script>
+EcoFX.mount({title:"서식지 보호 임무",goal:"무차별 공격 대신 초록 토착종을 피하고 지정된 대상에 대응하세요.",note:"생물다양성 지수만으로 생태계 건강을 판단할 수 없습니다. 이 게임의 지정 대상과 대응은 가상 관리 임무입니다.",read:()=>({label:'보호 '+Math.round(ecoStatus().protected*100)+'% · 기록',progress:Math.min(ecoStatus().protected,ecoStatus().managed)*100,detail:'토착종 '+ecoStatus().native+'마리 생존 · 대응 대상 '+ecoStatus().inv+'마리 남음. 두 목표 모두 80% 이상으로 깃발에 도착하세요.'}),actions:[]});
+</script>
+</body>
+</html>

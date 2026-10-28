@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta name="referrer" content="no-referrer">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>생태계 디펜스: 외래종을 막아라!</title>
+    <style>
+        /* [0] 디자인 시스템 및 변수 (네온 & 글래스모피즘) */
+        :root {
+            --bg-grad-1: #064e3b; /* 딥 다크 그린 */
+            --bg-grad-2: #022c22;
+            --glass-bg: rgba(255, 255, 255, 0.08);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --neon-green: #39ff14;
+            --neon-cyan: #00f3ff;
+            --neon-yellow: #fde047;
+            --danger: #ef4444;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --ui-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        * { box-sizing: border-box; user-select: none; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+        body {
+            margin: 0; padding: 0; min-height: 100vh;
+            background: radial-gradient(circle at center, var(--bg-grad-1), var(--bg-grad-2));
+            color: var(--text-main); display: flex; flex-direction: column; align-items: center;
+            overflow: hidden;
+        }
+
+        /* --- [1. 시작 화면 (Title Screen)] --- */
+        #start-screen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: radial-gradient(circle at 50% 50%, rgba(2, 44, 34, 0.8), rgba(0, 0, 0, 0.95));
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 2000; transition: opacity 0.8s ease-out, visibility 0.8s;
+            backdrop-filter: blur(8px);
+        }
+
+        .title-card {
+            background: var(--glass-bg); border: 1px solid var(--glass-border);
+            padding: 50px 80px; border-radius: 24px; box-shadow: var(--ui-shadow);
+            text-align: center; animation: floatTitle 4s ease-in-out infinite;
+        }
+
+        .main-title {
+            font-size: 5.5rem; font-weight: 900; margin: 0 0 15px 0; color: #fff; text-transform: uppercase;
+            text-shadow: 0 0 10px var(--neon-green), 0 0 20px var(--neon-green), 0 0 40px rgba(57, 255, 20, 0.5), 4px 4px 0px rgba(0,0,0,0.8);
+        }
+
+        .sub-title { font-size: 1.3rem; color: var(--neon-cyan); margin-bottom: 40px; text-shadow: 0 0 10px rgba(0,243,255,0.4); }
+
+        .btn-group { display: flex; flex-direction: column; gap: 20px; align-items: center; }
+
+        .start-btn {
+            background: linear-gradient(45deg, #10b981, var(--neon-green)); border: none; color: #000;
+            font-size: 2.2rem; font-weight: 900; padding: 20px 80px; border-radius: 50px; cursor: pointer;
+            box-shadow: 0 0 20px rgba(57, 255, 20, 0.5); transition: all 0.3s ease; animation: pulseBtn 2s infinite;
+        }
+        .start-btn:hover {
+            transform: scale(1.1) perspective(200px) rotateX(10deg);
+            box-shadow: 0 0 40px var(--neon-green), inset 0 0 15px rgba(255,255,255,0.8);
+        }
+
+        .how-to-btn {
+            background: rgba(0,0,0,0.3); border: 1px solid var(--text-muted); color: var(--text-main);
+            padding: 12px 40px; font-size: 1.2rem; border-radius: 30px; cursor: pointer; transition: 0.2s;
+        }
+        .how-to-btn:hover { border-color: var(--neon-cyan); color: var(--neon-cyan); background: rgba(0,243,255,0.1); }
+
+        @keyframes floatTitle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
+        @keyframes pulseBtn { 0%, 100% { box-shadow: 0 0 20px rgba(57, 255, 20, 0.5); } 50% { box-shadow: 0 0 40px rgba(57, 255, 20, 0.9); } }
+
+        /* --- [2. 게임 오버 / 승리 모달] --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
+            display: none; justify-content: center; align-items: center; z-index: 3000;
+        }
+        .modal-content {
+            background: rgba(2, 44, 34, 0.9); border: 2px solid var(--neon-green);
+            border-radius: 20px; padding: 50px; text-align: center; box-shadow: 0 0 50px rgba(57, 255, 20, 0.3);
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); min-width: 400px;
+        }
+        @keyframes popIn { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        /* --- [3. UI/UX 및 메인 레이아웃] --- */
+        .glass { background: var(--glass-bg); backdrop-filter: blur(16px); border: 1px solid var(--glass-border); border-radius: 16px; box-shadow: var(--ui-shadow); }
+
+        #game-container { display: flex; flex-direction: column; align-items: center; width: 100%; height: 100vh; visibility: hidden; opacity: 0; transition: opacity 0.5s; }
+
+        header {
+            width: 100%; max-width: 1200px; display: flex; justify-content: space-between; align-items: center;
+            padding: 15px 30px; margin-top: 15px; margin-bottom: 15px;
+        }
+
+        .stat-group { display: flex; gap: 20px; align-items: center; }
+        .stat-card { display: flex; align-items: center; gap: 12px; padding: 12px 24px; font-size: 1.3rem; font-weight: bold; }
+        .energy-text { color: var(--neon-green); text-shadow: 0 0 10px var(--neon-green); font-size: 1.5rem; }
+        
+        .hp-container { display: flex; align-items: center; gap: 10px; }
+        .hp-bar-bg { width: 180px; height: 20px; background: rgba(0,0,0,0.6); border-radius: 10px; overflow: hidden; border: 1px solid var(--danger); }
+        #hp-bar-fill { width: 100%; height: 100%; background: var(--danger); box-shadow: 0 0 15px var(--danger); transition: width 0.3s; }
+
+        #main-content { display: flex; gap: 25px; max-width: 1200px; width: 100%; height: 620px; padding: 0 20px; }
+        
+        #canvas-wrapper { position: relative; border-radius: 16px; box-shadow: 0 0 30px rgba(0, 0, 0, 0.8); }
+        canvas { border-radius: 16px; border: 2px solid var(--glass-border); cursor: crosshair; display: block; }
+
+        #right-panel { flex: 1; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; padding-right: 10px; }
+        .panel-section { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+        .panel-title { margin: 0; font-size: 1.1rem; color: #fff; text-transform: uppercase; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px; }
+
+        /* 타워 & 스킬 액션 버튼 */
+        .action-btn {
+            background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 12px;
+            padding: 15px; color: var(--text-main); text-align: left; cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden;
+        }
+        .action-btn:hover:not(:disabled) { transform: translateY(-4px) scale(1.02); background: rgba(255,255,255,0.1); box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
+        .action-btn.selected { border-color: var(--neon-cyan); background: rgba(0, 243, 255, 0.1); box-shadow: 0 0 20px rgba(0, 243, 255, 0.3); }
+        .action-btn:disabled { opacity: 0.4; cursor: not-allowed; filter: grayscale(100%); }
+        
+        .btn-header { display: flex; justify-content: space-between; font-weight: 900; font-size: 1.1rem; margin-bottom: 6px; }
+        .btn-desc { font-size: 0.9rem; color: var(--text-muted); line-height: 1.4; }
+
+        /* 쿨타임 오버레이 */
+        .skill-btn { border-color: rgba(253, 224, 71, 0.4); }
+        .skill-btn.selected { border-color: var(--neon-yellow); background: rgba(253, 224, 71, 0.1); box-shadow: 0 0 20px rgba(253,224,71,0.3); }
+        .cd-overlay { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: rgba(0, 0, 0, 0.85); transition: height 0.1s linear; }
+        .cd-text { color: #fff; font-size: 2.5rem; font-weight: 900; text-shadow: 0 0 15px #000; display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2; }
+        .skill-btn.on-cooldown .cd-text { display: block; }
+        .skill-btn.on-cooldown { cursor: not-allowed; pointer-events: none; border-color: #333; }
+
+        /* 인스펙터 (업그레이드/판매) */
+        #inspector-panel { display: none; border-color: var(--neon-cyan); }
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 1rem; }
+        .btn-upgrade { background: rgba(0, 243, 255, 0.15); border: 1px solid var(--neon-cyan); color: var(--neon-cyan); width: 100%; padding: 12px; border-radius: 10px; margin-top: 10px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-upgrade:hover:not(:disabled) { background: var(--neon-cyan); color: #000; box-shadow: 0 0 15px var(--neon-cyan); }
+        .btn-upgrade:disabled { border-color: #555; color: #555; cursor: not-allowed; }
+        .btn-sell { background: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); color: var(--danger); width: 100%; padding: 12px; border-radius: 10px; margin-top: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-sell:hover { background: var(--danger); color: #fff; box-shadow: 0 0 15px var(--danger); }
+
+        #wave-start-btn {
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6); border: none; color: white; font-size: 1.3rem; font-weight: 900;
+            padding: 18px; border-radius: 12px; cursor: pointer; margin-top: auto; transition: 0.2s; box-shadow: 0 0 20px rgba(139, 92, 246, 0.4);
+        }
+        #wave-start-btn:hover:not(:disabled) { transform: scale(1.02); box-shadow: 0 0 30px rgba(139, 92, 246, 0.8); }
+        #wave-start-btn:disabled { background: #333; box-shadow: none; cursor: not-allowed; color: #777; }
+
+        /* --- [6. 보스 UI] --- */
+        #boss-ui {
+            position: absolute; top: 100px; left: 50%; transform: translateX(-50%); width: 600px; text-align: center;
+            display: none; z-index: 100; padding: 20px; border-radius: 16px;
+            background: rgba(2ef, 68, 68, 0.15); border: 2px solid var(--danger);
+            box-shadow: 0 0 30px rgba(239, 68, 68, 0.6); animation: pulseBoss 1.5s infinite; backdrop-filter: blur(10px);
+        }
+        @keyframes pulseBoss { 0%, 100% { box-shadow: 0 0 30px rgba(239,68,68,0.5); } 50% { box-shadow: 0 0 60px rgba(239,68,68,0.9); } }
+        #boss-ui h2 { margin: 0 0 12px 0; color: #fff; text-shadow: 0 0 15px var(--danger); font-size: 2rem; font-weight: 900; letter-spacing: 2px;}
+        #boss-hp-bar-bg { width: 100%; height: 28px; background: rgba(0,0,0,0.8); border-radius: 14px; overflow: hidden; border: 2px solid #fff; }
+        #boss-hp-bar-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #ff007f, #ef4444); transition: width 0.1s linear; }
+
+        /* 스크롤바 커스텀 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+    </style>
+<script src="eco-feedback.js"></script>
+<style>@media(max-width:900px){body{overflow-y:auto!important}#game-container{height:auto;min-height:100vh;padding-bottom:60px}header{box-sizing:border-box;padding:10px;flex-wrap:wrap;gap:8px}.stat-group{gap:6px;flex-wrap:wrap}.stat-card{padding:8px;font-size:1rem}.hp-bar-bg{width:100px}#main-content{box-sizing:border-box;flex-direction:column;height:auto;padding:0 10px;gap:12px}#canvas-wrapper{width:100%}#canvas-wrapper canvas{width:100%;height:auto;box-sizing:border-box}#right-panel{overflow:visible;padding:0}.modal-content{min-width:0;max-width:94vw;box-sizing:border-box}#boss-ui{width:90%;box-sizing:border-box}}</style></head>
+<body>
+
+<!-- [0. 시작 화면] -->
+<div id="start-screen">
+    <div class="title-card">
+        <h1 class="main-title">외래종을 막아라!</h1>
+        <div class="sub-title">생태계를 위협하는 교란종에 맞서 생물다양성을 지켜내세요!</div>
+        <div class="btn-group">
+            <button class="start-btn" onclick="startGame()">게임 시작</button>
+            <button class="how-to-btn" onclick="document.getElementById('how-to-modal').style.display='flex'">게임 방법 안내</button>
+        </div>
+    </div>
+</div>
+
+<!-- 게임 방법 모달 -->
+<div id="how-to-modal" class="modal-overlay">
+    <div class="modal-content glass" style="max-width: 600px; text-align: left; background: var(--bg-grad-1);">
+        <h2 style="color: var(--neon-cyan); margin-top:0; border-bottom:1px solid #555; padding-bottom:10px;">📖 생태계 방어 가이드</h2>
+        <div style="color: var(--text-main); font-size: 1rem; line-height: 1.6;">
+            <p><strong>[하드코어 방어 룰]</strong><br>
+            - 적들의 체력(HP)이 웨이브마다 급격히 증가합니다.<br>
+            - 획득한 에너지(🌱)로 타워를 짓고 <strong>꾸준히 업그레이드</strong>해야만 방어할 수 있습니다.</p>
+            <p><strong style="color:var(--neon-green);">[타워 3종]</strong><br>
+            1. <strong>포획 덫(50🌱):</strong> 단일 타겟, 빠르지만 낮은 데미지.<br>
+            2. <strong>예초 로봇(80🌱):</strong> 지속 회전하며 광역 스플래시 데미지.<br>
+            3. <strong>수달 생태지(120🌱):</strong> 느리지만 강력한 한 방 + 이동속도 20% 감소.</p>
+            <p><strong style="color:var(--neon-yellow);">[노 코스트 스킬]</strong> (범위 클릭형)<br>
+            - <strong>약품 살포(20s):</strong> 반경 80px 내 3초간 지속 도트 데미지.<br>
+            - <strong>포획망 투척(30s):</strong> 반경 80px 내 적을 3초간 완전 이동 정지(Stun).</p>
+            <p><strong style="color:var(--danger);">[보스: 황소개구리]</strong> 5웨이브에 등장. 5초마다 올챙이를 소환합니다!</p>
+        </div>
+        <button class="how-to-btn" style="width:100%; margin-top:20px;" onclick="document.getElementById('how-to-modal').style.display='none'">확인</button>
+    </div>
+</div>
+
+<!-- [게임 메인 UI] -->
+<div id="game-container">
+    <header>
+        <div class="glass stat-card">
+            <span style="color: #3b82f6;">WAVE</span> <span id="wave-display" style="text-shadow: 0 0 10px #3b82f6;">0 / 5</span>
+        </div>
+        <div class="stat-group">
+            <div class="glass stat-card"><span>🏆</span> <span id="score-display">0</span></div>
+            <div class="glass stat-card" style="border-color: rgba(239, 68, 68, 0.5);">
+                <div class="hp-container">
+                    <span>❤️</span>
+                    <div class="hp-bar-bg"><div id="hp-bar-fill"></div></div>
+                    <span id="hp-text">20/20</span>
+                </div>
+            </div>
+            <div class="glass stat-card" style="border-color: rgba(57, 255, 20, 0.5);">
+                <span style="font-size: 1.5rem;">🌱</span> <span class="energy-text" id="energy-display">300</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 보스 체력 UI -->
+    <div id="boss-ui">
+        <h2>MUTANT BULLFROG (황소개구리)</h2>
+        <div id="boss-hp-bar-bg"><div id="boss-hp-bar-fill"></div></div>
+    </div>
+
+    <main id="main-content">
+        <div id="canvas-wrapper">
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+        </div>
+        
+        <aside id="right-panel">
+            <!-- 타워 건설 메뉴 -->
+            <div class="glass panel-section" id="build-menu">
+                <h3 class="panel-title">Defense Towers</h3>
+                <button class="action-btn" id="btn-tower1" onclick="selectAction('build', 1, 50)">
+                    <div class="btn-header"><span>🪤 포획 덫</span> <span style="color:var(--neon-green);">50🌱</span></div>
+                    <div class="btn-desc">단일 대상에게 빠른 공격 (저대미지)</div>
+                </button>
+                <button class="action-btn" id="btn-tower2" onclick="selectAction('build', 2, 80)">
+                    <div class="btn-header"><span>⚙️ 예초 로봇</span> <span style="color:var(--neon-green);">80🌱</span></div>
+                    <div class="btn-desc">범위 내 모든 적 지속 회전 타격 (광역)</div>
+                </button>
+                <button class="action-btn" id="btn-tower3" onclick="selectAction('build', 3, 120)">
+                    <div class="btn-header"><span>🦦 수달 생태지</span> <span style="color:var(--neon-green);">120🌱</span></div>
+                    <div class="btn-desc">느린 공속, 강한 대미지 + 20% 이속 감소</div>
+                </button>
+            </div>
+
+            <!-- 타워 인스펙터 -->
+            <div class="glass panel-section" id="inspector-panel">
+                <h3 class="panel-title">Tower Info</h3>
+                <h4 id="insp-title" style="margin:5px 0; color:var(--neon-cyan); font-size:1.3rem;">타워 이름</h4>
+                <div>
+                    <div class="stat-row"><span style="color:#aaa;">레벨</span> <strong id="insp-lvl">1</strong></div>
+                    <div class="stat-row"><span style="color:#aaa;">대미지</span> <strong id="insp-dmg">0</strong></div>
+                    <div class="stat-row"><span style="color:#aaa;">사거리</span> <strong id="insp-rng">0</strong></div>
+                    <div class="stat-row"><span style="color:#aaa;">공격속도</span> <strong id="insp-spd">0</strong></div>
+                </div>
+                <button class="btn-upgrade" id="btn-upgrade" onclick="upgradeTower()">업그레이드</button>
+                <button class="btn-sell" id="btn-sell" onclick="sellTower()">철거 (70% 환급)</button>
+                <button class="how-to-btn" style="margin-top:10px; width:100%; font-size:1rem; padding:8px;" onclick="clearSelection()">선택 취소</button>
+            </div>
+
+            <!-- 스킬 메뉴 -->
+            <div class="glass panel-section">
+                <h3 class="panel-title">Active Skills <span style="font-size:0.8rem; color:#888;">(No Cost)</span></h3>
+                <button class="action-btn skill-btn" id="btn-skill1" onclick="selectAction('skill', 1, 0)">
+                    <div class="btn-header"><span>🧪 약품 살포</span></div>
+                    <div class="btn-desc">지정 범위 적에게 3초간 도트 데미지</div>
+                    <div class="cd-overlay" id="cd-overlay-1"></div>
+                    <div class="cd-text" id="cd-text-1">20</div>
+                </button>
+                <button class="action-btn skill-btn" id="btn-skill2" onclick="selectAction('skill', 2, 0)">
+                    <div class="btn-header"><span>🕸️ 포획망 투척</span></div>
+                    <div class="btn-desc">지정 범위 적들을 3초간 이동 정지(Stun)</div>
+                    <div class="cd-overlay" id="cd-overlay-2"></div>
+                    <div class="cd-text" id="cd-text-2">30</div>
+                </button>
+            </div>
+
+            <button id="wave-start-btn" onclick="startNextWave()">NEXT WAVE 🚀</button>
+        </aside>
+    </main>
+</div>
+
+<!-- 게임 결과 모달 -->
+<div id="result-modal" class="modal-overlay">
+    <div class="modal-content glass">
+        <h1 id="result-title" style="font-size: 3rem; margin:0 0 10px 0; text-transform:uppercase;">TITLE</h1>
+        <p id="result-score" style="color: var(--neon-yellow); font-size: 1.8rem; margin: 10px 0; font-weight:bold;">최종 스코어: 0</p>
+        <p id="result-wave" style="color: #fff; font-size: 1.2rem; margin: 0 0 30px 0;">버틴 웨이브: 0 / 5</p>
+        <button class="start-btn" style="font-size:1.5rem; padding:15px 50px;" onclick="restartGame()">다시 시작</button>
+    </div>
+</div>
+
+<script>
+/** 
+ * 1. 캔버스 및 전역 상태 설정
+ */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const TILE_SIZE = 50;
+const COLS = canvas.width / TILE_SIZE; // 16
+const ROWS = canvas.height / TILE_SIZE; // 12
+
+const MAX_HP = 20;
+let hp = MAX_HP;
+let energy = 300; 
+let score = 0;
+let currentWave = 0;
+
+let gameState = 'title'; // title, playing, ended
+let waveSpawning = false;
+let animationFrameId = null;
+
+let enemies = [];
+let towers = [];
+let projectiles = [];
+let particles = [];
+let floatingTexts = [];
+let zones = [];
+
+let currentAction = null; 
+let selectedType = null;
+let selectedCost = 0;
+let selectedTowerInstance = null; 
+
+let mouseX = -100, mouseY = -100;
+let gridX = -1, gridY = -1;
+
+const skills = {
+    1: { name: '약품 살포', maxCd: 1200, currentCd: 0, range: 80, dps: 80, color: 'rgba(253, 224, 71, 0.5)' }, // 20초 (60FPS)
+    2: { name: '포획망', maxCd: 1800, currentCd: 0, range: 80, freezeTime: 180, color: 'rgba(0, 243, 255, 0.4)' } // 30초
+};
+
+let grid = [];
+let pathCoords = [];
+let waypoints = [];
+
+/**
+ * 2. 무작위 맵 생성 로직 (우측으로 진행하는 꺾인 경로)
+ */
+function initGrid() {
+    grid = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+    
+    // 경로 생성 (좌측에서 우측으로 3~5번 꺾임 보장)
+    pathCoords = [];
+    let currX = 0;
+    let currY = Math.floor(Math.random() * (ROWS - 4)) + 2; // Y: 2 ~ 9
+    pathCoords.push({x: currX, y: currY});
+    
+    const numTurns = Math.floor(Math.random() * 3) + 3; // 3 ~ 5
+    let wps = [];
+    let xStep = Math.floor((COLS - 2) / numTurns);
+    
+    for(let i=1; i<=numTurns; i++) {
+        let nX = i * xStep + Math.floor(Math.random()*2);
+        let nY = Math.floor(Math.random() * (ROWS - 2)) + 1;
+        wps.push({x: nX, y: nY});
+    }
+    wps.push({x: COLS - 1, y: Math.floor(Math.random() * (ROWS - 4)) + 2});
+
+    for(let wp of wps) {
+        // X, Y 이동 순서 랜덤
+        if(Math.random() > 0.5) {
+            while(currX < wp.x) { currX++; pathCoords.push({x: currX, y: currY}); }
+            while(currY !== wp.y) { currY += (currY < wp.y ? 1 : -1); pathCoords.push({x: currX, y: currY}); }
+        } else {
+            while(currY !== wp.y) { currY += (currY < wp.y ? 1 : -1); pathCoords.push({x: currX, y: currY}); }
+            while(currX < wp.x) { currX++; pathCoords.push({x: currX, y: currY}); }
+        }
+    }
+    
+    // 중복 및 좌표 정리
+    const uniquePath = [];
+    pathCoords.forEach(p => {
+        if(!uniquePath.some(u => u.x === p.x && u.y === p.y)) {
+            uniquePath.push(p);
+            grid[p.y][p.x] = 1; // 1 = Path
+        }
+    });
+    pathCoords = uniquePath;
+    waypoints = pathCoords.map(p => ({ x: p.x * TILE_SIZE + TILE_SIZE/2, y: p.y * TILE_SIZE + TILE_SIZE/2 }));
+}
+
+/**
+ * 3. 엔티티 클래스 (Enemy, Tower, Projectile, Zone)
+ */
+class Enemy {
+    constructor(type, cx=null, cy=null, customWp=0) {
+        this.type = type;
+        this.waypointIndex = customWp;
+        this.x = cx !== null ? cx : waypoints[0].x;
+        this.y = cy !== null ? cy : waypoints[0].y;
+        this.freezeTimer = 0;
+        this.slowTimer = 0; 
+        this.isBoss = false;
+        
+        // 밸런스: 웨이브 스케일링 가파르게 (하드모드) 1.5배씩
+        let multiplier = Math.pow(1.5, Math.max(0, currentWave - 1));
+        
+        switch(type) {
+            case 'bass': 
+                this.name = "배스"; this.maxHp = 150 * multiplier; this.speed = 1.0; this.reward = 25; this.radius = 12; this.score = 10; break;
+            case 'burcucumber': 
+                this.name = "가시박"; this.maxHp = 100 * multiplier; this.speed = 1.8; this.reward = 30; this.radius = 14; this.score = 15; break;
+            case 'nutria': 
+                this.name = "뉴트리아"; this.maxHp = 500 * multiplier; this.speed = 0.6; this.reward = 40; this.radius = 18; this.score = 30; break;
+            case 'hornet': 
+                this.name = "등검은말벌"; this.maxHp = 120 * multiplier; this.speed = 1.5; this.reward = 35; this.radius = 10; this.score = 20; break;
+            case 'bullfrog': 
+                this.name = "황소개구리 (Boss)"; this.maxHp = 8000; this.speed = 0.4; this.reward = 500; this.radius = 35; this.score = 1000;
+                this.isBoss = true; this.spawnTimer = 300; // 5초
+                break;
+            case 'tadpole': 
+                this.name = "올챙이"; this.maxHp = 80 * multiplier; this.speed = 1.2; this.reward = 5; this.radius = 8; this.score = 5; break;
+        }
+        this.hp = this.maxHp;
+    }
+
+    update() {
+        if (this.freezeTimer > 0) { this.freezeTimer--; return; }
+
+        if (this.isBoss) {
+            this.spawnTimer--;
+            if (this.spawnTimer <= 0) {
+                this.spawnTimer = 300; 
+                enemies.push(new Enemy('tadpole', this.x - 20, this.y, this.waypointIndex));
+                enemies.push(new Enemy('tadpole', this.x + 20, this.y, this.waypointIndex));
+                addParticle(this.x, this.y, '#39ff14', 20);
+                addFloatingText(this.x, this.y - 40, "소환!", '#00f3ff');
+            }
+            let fill = document.getElementById('boss-hp-bar-fill');
+            if(fill) fill.style.width = Math.max(0, (this.hp / this.maxHp) * 100) + '%';
+        }
+
+        if (this.waypointIndex >= waypoints.length) return; 
+
+        const target = waypoints[this.waypointIndex];
+        const dx = target.x - this.x, dy = target.y - this.y;
+        const dist = Math.hypot(dx, dy);
+
+        let curSpeed = this.speed;
+        if (this.slowTimer > 0) { this.slowTimer--; curSpeed *= 0.8; } // 20% 슬로우
+
+        if (dist < curSpeed) {
+            this.x = target.x; this.y = target.y; this.waypointIndex++;
+        } else {
+            this.x += (dx / dist) * curSpeed; this.y += (dy / dist) * curSpeed;
+        }
+    }
+
+    draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        
+        let angle = 0;
+        if (this.waypointIndex < waypoints.length) {
+            angle = Math.atan2(waypoints[this.waypointIndex].y - this.y, waypoints[this.waypointIndex].x - this.x);
+        }
+        
+        // 상태이상 효과
+        if (this.freezeTimer > 0) {
+            ctx.beginPath(); ctx.arc(0, 0, this.radius + 8, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(0, 243, 255, 0.4)'; ctx.fill();
+        } else if (this.slowTimer > 0) {
+            ctx.beginPath(); ctx.arc(0, 0, this.radius + 4, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(139, 92, 246, 0.4)'; ctx.fill(); // 보라색 슬로우
+        }
+
+        ctx.rotate(angle);
+
+        // 고유 외형 그리기
+        if (this.type === 'bass') {
+            ctx.fillStyle = '#10b981'; ctx.beginPath(); ctx.ellipse(0, 0, 16, 9, 0, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(-12, 0); ctx.lineTo(-20, -6); ctx.lineTo(-20, 6); ctx.fill();
+            ctx.fillStyle = '#064e3b'; ctx.beginPath(); ctx.arc(10, 0, 4, 0, Math.PI); ctx.fill(); 
+        } else if (this.type === 'burcucumber') {
+            ctx.fillStyle = '#065f46'; ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#34d399'; ctx.lineWidth = 2;
+            for(let i=0; i<8; i++) { ctx.rotate(Math.PI/4); ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(18, 0); ctx.stroke(); }
+        } else if (this.type === 'nutria') {
+            ctx.fillStyle = '#78350f'; ctx.beginPath(); ctx.ellipse(0, 0, 18, 13, 0, 0, Math.PI*2); ctx.fill(); 
+            ctx.fillStyle = '#f97316'; ctx.fillRect(14, -3, 4, 6); // 주황 앞니
+            ctx.strokeStyle = '#000'; ctx.beginPath(); ctx.moveTo(12,-5); ctx.lineTo(22,-12); ctx.stroke(); 
+            ctx.beginPath(); ctx.moveTo(12,5); ctx.lineTo(22,12); ctx.stroke();
+        } else if (this.type === 'hornet') {
+            ctx.fillStyle = '#eab308'; ctx.beginPath(); ctx.ellipse(0, 0, 14, 7, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#111'; ctx.fillRect(-4, -7, 4, 14); ctx.fillRect(4, -6, 3, 12);
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            let wing = Math.sin(Date.now() / 40) * 0.6; 
+            ctx.scale(1, 1 + wing);
+            ctx.beginPath(); ctx.ellipse(0, -9, 8, 12, Math.PI/4, 0, Math.PI*2); ctx.fill(); 
+            ctx.beginPath(); ctx.ellipse(0, 9, 8, 12, -Math.PI/4, 0, Math.PI*2); ctx.fill();
+        } else if (this.type === 'bullfrog') {
+            ctx.fillStyle = '#3f6212'; ctx.beginPath(); ctx.ellipse(0, 0, 35, 28, 0, 0, Math.PI*2); ctx.fill();
+            let sac = 1 + Math.sin(Date.now() / 150) * 0.2; 
+            ctx.fillStyle = 'rgba(132, 204, 22, 0.8)';
+            ctx.beginPath(); ctx.arc(22, -22, 12 * sac, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(22, 22, 12 * sac, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(26, -12, 6, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(26, 12, 6, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(28, -12, 3, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(28, 12, 3, 0, Math.PI*2); ctx.fill();
+        } else if (this.type === 'tadpole') {
+            ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(-5, 0); ctx.quadraticCurveTo(-12, Math.sin(Date.now()/50)*6, -20, 0); ctx.strokeStyle='#111'; ctx.lineWidth=3; ctx.stroke();
+        }
+        ctx.restore();
+
+        // 이름표 & 체력바 (보스 제외)
+        if (!this.isBoss) {
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+            ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+            ctx.fillText(this.name, this.x, this.y - this.radius - 12);
+            ctx.shadowBlur = 0;
+            
+            const hpRatio = Math.max(0, this.hp / this.maxHp);
+            ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(this.x - 16, this.y - this.radius - 8, 32, 5);
+            ctx.fillStyle = '#ef4444'; ctx.fillRect(this.x - 16, this.y - this.radius - 8, 32 * hpRatio, 5);
+        }
+    }
+}
+
+class Tower {
+    constructor(x, y, type) {
+        this.gridX = x; this.gridY = y;
+        this.x = x * TILE_SIZE + TILE_SIZE / 2;
+        this.y = y * TILE_SIZE + TILE_SIZE / 2;
+        this.type = type;
+        this.level = 1;
+        this.cooldownTimer = 0;
+        
+        // 하드모드 밸런싱: 기본 댐지 낮음. 업글 필수.
+        if (type === 1) { // 덫
+            this.baseCost = 50; this.name = "포획 덫"; this.color = '#94a3b8';
+            this.range = 130; this.damage = 15; this.cooldown = 20; 
+        } else if (type === 2) { // 예초기
+            this.baseCost = 80; this.name = "예초 로봇"; this.color = '#34d399';
+            this.range = 110; this.damage = 0.4; this.cooldown = 0; 
+        } else if (type === 3) { // 수달
+            this.baseCost = 120; this.name = "수달 생태지"; this.color = '#ea580c';
+            this.range = 160; this.damage = 120; this.cooldown = 120; 
+        }
+        this.totalInvested = this.baseCost;
+        this.angle = 0;
+        this.target = null; // 타겟 추적 변수 추가
+    }
+
+    getUpgradeCost() { return Math.floor(this.baseCost * this.level); }
+    getSellValue() { return Math.floor(this.totalInvested * 0.7); }
+
+    upgrade() {
+        if (this.level >= 3) return false;
+        const cost = this.getUpgradeCost();
+        if (energy >= cost) {
+            energy -= cost; this.totalInvested += cost; this.level++;
+            // 업글 효율을 높게 설정 (하드모드 극복용)
+            this.damage = this.damage * 1.8;
+            this.range += 15;
+            if(this.type !== 2) this.cooldown = Math.max(10, this.cooldown - 2);
+            addFloatingText(this.x, this.y - 20, "레벨 업!", '#00f3ff');
+            addParticle(this.x, this.y, '#00f3ff', 20);
+            return true;
+        }
+        return false;
+    }
+
+    update() {
+        if (this.cooldownTimer > 0) this.cooldownTimer--;
+
+        if (this.type === 2) { 
+            this.angle += 0.15;
+            let hit = false;
+            for (let enemy of enemies) {
+                if (Math.hypot(enemy.x - this.x, enemy.y - this.y) <= this.range) {
+                    enemy.hp -= this.damage; hit = true;
+                    if (Math.random() < 0.05) addParticle(enemy.x, enemy.y, '#34d399', 1, 10);
+                }
+            }
+            if (hit && Math.random() < 0.1) addParticle(this.x, this.y, '#fff', 1, 5);
+        } else {
+            this.target = null;
+            for (let enemy of enemies) {
+                if (Math.hypot(enemy.x - this.x, enemy.y - this.y) <= this.range) { this.target = enemy; break; }
+            }
+            if (this.target) {
+                // 타겟을 향해 포탑 회전
+                this.angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+                
+                if (this.cooldownTimer === 0) {
+                    projectiles.push(new Projectile(this.x, this.y, this.target, this.damage, this.type));
+                    this.cooldownTimer = this.cooldown;
+                }
+            }
+        }
+    }
+
+    draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        
+        // 타워 베이스 (받침대)
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.strokeStyle = this.color; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.roundRect(-22, -22, 44, 44, 10); ctx.fill(); ctx.stroke();
+        
+        // 타워 헤드 회전
+        ctx.rotate(this.angle);
+
+        if(this.type === 1) { 
+            // 포획 덫: 총열(Barrel) 느낌으로 재설계
+            ctx.fillStyle = '#475569'; ctx.fillRect(-10, -10, 20, 20); 
+            ctx.fillStyle = this.color; ctx.fillRect(0, -3, 18, 6); 
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0,0, 5, 0, Math.PI*2); ctx.fill();
+        } else if (this.type === 2) { 
+            ctx.fillStyle = this.color;
+            ctx.beginPath(); ctx.moveTo(0,-16); ctx.lineTo(16,0); ctx.lineTo(0,16); ctx.lineTo(-16,0); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0,0, 4, 0, Math.PI*2); ctx.fill();
+        } else if (this.type === 3) { 
+            // 수달 생태지: 거대한 대포 형태로 디자인
+            ctx.fillStyle = '#78350f'; ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = this.color; ctx.fillRect(0, -5, 22, 10);
+            ctx.fillStyle = '#431407'; ctx.fillRect(18, -6, 6, 12);
+        }
+
+        ctx.restore();
+
+        // 레벨 뱃지
+        ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.arc(this.x + 16, this.y + 16, 9, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Arial'; ctx.textAlign='center';
+        ctx.fillText(this.level, this.x + 16, this.y + 20);
+
+        if (selectedTowerInstance === this) {
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.range, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)'; ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+        }
+    }
+}
+
+class Projectile {
+    constructor(x, y, target, damage, type) {
+        this.x = x; this.y = y; this.target = target; this.damage = damage;
+        this.type = type;
+        this.speed = type === 1 ? 10 : 8; 
+        this.radius = type === 1 ? 4 : 8;
+        this.color = type === 1 ? '#cbd5e1' : '#ea580c';
+    }
+    update(i) {
+        if (!enemies.includes(this.target)) { projectiles.splice(i, 1); return; }
+        const dx = this.target.x - this.x, dy = this.target.y - this.y;
+        const dist = Math.hypot(dx, dy);
+        
+        addParticle(this.x, this.y, this.color, 1, 5);
+
+        if (dist < this.target.radius + this.radius) {
+            this.target.hp -= this.damage;
+            if (this.type === 3) this.target.slowTimer = 90; // 1.5초 슬로우
+            addParticle(this.target.x, this.target.y, this.color, 12);
+            projectiles.splice(i, 1);
+        } else {
+            this.x += (dx / dist) * this.speed; this.y += (dy / dist) * this.speed;
+        }
+    }
+    draw() {
+        ctx.shadowColor = this.color; ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+        ctx.fillStyle = '#fff'; ctx.fill(); ctx.shadowBlur = 0;
+    }
+}
+
+class Zone {
+    constructor(x, y, type) {
+        this.x = x; this.y = y; this.type = type;
+        this.radius = skills[type].range;
+        this.life = 180; // 3초
+        this.maxLife = 180;
+    }
+    update(i) {
+        this.life--;
+        if(this.type === 1) { // 약품 살포 도트 데미지
+            enemies.forEach(e => {
+                if (Math.hypot(e.x - this.x, e.y - this.y) <= this.radius) {
+                    e.hp -= skills[1].dps / 60;
+                    if(Math.random()<0.1) addParticle(e.x, e.y, '#fde047', 1);
+                }
+            });
+        }
+        if (this.life <= 0) zones.splice(i, 1);
+    }
+    draw() {
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+        let alpha = (this.life / this.maxLife) * 0.4;
+        ctx.fillStyle = this.type === 1 ? `rgba(253, 224, 71, ${alpha})` : `rgba(0, 243, 255, ${alpha})`;
+        ctx.fill();
+    }
+}
+
+/**
+ * 4. 이펙트 및 유틸
+ */
+function addParticle(x, y, color, count=1, life=20) {
+    for(let i=0; i<count; i++) particles.push({ x, y, vx: (Math.random()-0.5)*6, vy: (Math.random()-0.5)*6, radius: Math.random()*3+2, color, maxLife: life, life });
+}
+function handleParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.life--;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+        ctx.fillStyle = p.color; ctx.globalAlpha = Math.max(0, p.life / p.maxLife); ctx.fill();
+        ctx.globalAlpha = 1.0;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+}
+function addFloatingText(x, y, text, color) { floatingTexts.push({ x, y, text, color, life: 40 }); }
+function handleFloatingTexts() {
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        const ft = floatingTexts[i];
+        ft.y -= 1; ft.life--;
+        ctx.fillStyle = ft.color; ctx.font = 'bold 16px Pretendard'; ctx.textAlign='center';
+        ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+        ctx.globalAlpha = Math.max(0, ft.life / 40);
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.globalAlpha = 1.0; ctx.shadowBlur = 0;
+        if (ft.life <= 0) floatingTexts.splice(i, 1);
+    }
+}
+
+/**
+ * 5. 시스템 및 웨이브
+ */
+const waveConfigs = [
+    [], 
+    [{type: 'bass', count: 10, interval: 60}], // W1
+    [{type: 'bass', count: 10, interval: 40}, {type: 'burcucumber', count: 8, interval: 40}], // W2
+    [{type: 'nutria', count: 4, interval: 90}, {type: 'hornet', count: 10, interval: 30}, {type: 'bass', count: 8, interval: 25}], // W3
+    [{type: 'hornet', count: 15, interval: 25}, {type: 'burcucumber', count: 12, interval: 20}, {type: 'nutria', count: 5, interval: 60}], // W4
+    [{type: 'bullfrog', count: 1, interval: 0}] // W5
+];
+let spawnQueue = [], spawnTimer = 0;
+
+function startNextWave() {
+    if (waveSpawning || currentWave >= 5) return;
+    currentWave++; updateUI();
+    document.getElementById('wave-start-btn').disabled = true;
+    
+    spawnQueue = [];
+    waveConfigs[currentWave].forEach(c => { for(let i=0; i<c.count; i++) spawnQueue.push({ type: c.type, interval: c.interval }); });
+    
+    waveSpawning = true; spawnTimer = 60;
+    if(currentWave === 5) document.getElementById('boss-ui').style.display = 'block';
+}
+
+function handleSpawning() {
+    if (!waveSpawning) return;
+    spawnTimer--;
+    if (spawnTimer <= 0) {
+        if (spawnQueue.length > 0) {
+            const nextEnemy = spawnQueue.shift();
+            enemies.push(new Enemy(nextEnemy.type));
+            spawnTimer = nextEnemy.interval;
+        } else {
+            waveSpawning = false;
+            if (currentWave < 5) document.getElementById('wave-start-btn').disabled = false;
+        }
+    }
+}
+
+/**
+ * 6. UI 이벤트 및 상호작용
+ */
+function clearSelection() {
+    currentAction = null; selectedType = null; selectedTowerInstance = null;
+    document.querySelectorAll('.action-btn').forEach(btn => btn.classList.remove('selected'));
+    document.getElementById('inspector-panel').style.display = 'none';
+    document.getElementById('build-menu').style.display = 'flex';
+}
+
+function selectAction(action, type, cost) {
+    clearSelection(); currentAction = action; selectedType = type; selectedCost = cost;
+    if(action === 'build') document.getElementById(`btn-tower${type}`).classList.add('selected');
+    if(action === 'skill') document.getElementById(`btn-skill${type}`).classList.add('selected');
+}
+
+function showInspector(tower) {
+    clearSelection(); selectedTowerInstance = tower;
+    document.getElementById('build-menu').style.display = 'none';
+    document.getElementById('inspector-panel').style.display = 'flex';
+    
+    document.getElementById('insp-title').innerText = tower.name;
+    document.getElementById('insp-lvl').innerText = tower.level + (tower.level >= 3 ? " (MAX)" : "");
+    document.getElementById('insp-dmg').innerText = tower.damage.toFixed(1);
+    document.getElementById('insp-rng').innerText = tower.range;
+    document.getElementById('insp-spd').innerText = tower.type === 2 ? "지속" : (60 / tower.cooldown).toFixed(1) + "/s";
+    
+    const btnUp = document.getElementById('btn-upgrade');
+    if (tower.level < 3) {
+        btnUp.disabled = energy < tower.getUpgradeCost();
+        btnUp.innerText = `업그레이드 (${tower.getUpgradeCost()}🌱)`;
+    } else { btnUp.disabled = true; btnUp.innerText = "MAX LEVEL"; }
+    document.getElementById('btn-sell').innerText = `철거 (+${tower.getSellValue()}🌱)`;
+}
+
+function upgradeTower() {
+    if(selectedTowerInstance && selectedTowerInstance.upgrade()) { updateUI(); showInspector(selectedTowerInstance); }
+}
+
+function sellTower() {
+    if(selectedTowerInstance) {
+        energy += selectedTowerInstance.getSellValue();
+        grid[selectedTowerInstance.gridY][selectedTowerInstance.gridX] = 0;
+        towers = towers.filter(t => t !== selectedTowerInstance);
+        addParticle(selectedTowerInstance.x, selectedTowerInstance.y, '#fff', 20);
+        clearSelection(); updateUI();
+    }
+}
+
+// 캔버스 마우스 리스너
+canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    mouseX = (e.clientX - rect.left)*canvas.width/rect.width; mouseY = (e.clientY - rect.top)*canvas.height/rect.height;
+    gridX = Math.floor(mouseX / TILE_SIZE); gridY = Math.floor(mouseY / TILE_SIZE);
+});
+canvas.addEventListener('mouseleave', () => { gridX = -1; gridY = -1; });
+
+canvas.addEventListener('click', () => {
+    if (gameState !== 'playing') return;
+
+    if (currentAction === 'skill') {
+        const skill = skills[selectedType];
+        if (skill.currentCd === 0) {
+            zones.push(new Zone(mouseX, mouseY, selectedType));
+            if (selectedType === 2) {
+                enemies.forEach(e => {
+                    if (Math.hypot(e.x - mouseX, e.y - mouseY) <= skill.range) {
+                        e.freezeTimer = skill.freezeTime;
+                        addFloatingText(e.x, e.y, "STUN!", '#00f3ff');
+                    }
+                });
+            }
+            addParticle(mouseX, mouseY, skill.color, 40);
+            skill.currentCd = skill.maxCd; 
+            clearSelection();
+        }
+        return;
+    }
+
+    if (gridX >= 0 && gridX < COLS && gridY >= 0 && gridY < ROWS) {
+        if (currentAction === 'build' && grid[gridY][gridX] === 0) {
+            if (energy >= selectedCost) {
+                energy -= selectedCost;
+                towers.push(new Tower(gridX, gridY, selectedType));
+                grid[gridY][gridX] = 2; 
+                addParticle(mouseX, mouseY, '#39ff14', 15);
+                updateUI(); clearSelection();
+            } else { addFloatingText(mouseX, mouseY, "에너지 부족", '#ef4444'); }
+            return;
+        }
+
+        if (!currentAction) {
+            const clicked = towers.find(t => t.gridX === gridX && t.gridY === gridY);
+            if (clicked) showInspector(clicked); else clearSelection();
+        }
+    }
+});
+
+function updateUI() {
+    document.getElementById('hp-text').innerText = `${Math.max(0,hp)}/${MAX_HP}`;
+    document.getElementById('hp-bar-fill').style.width = `${Math.max(0, (hp/MAX_HP)*100)}%`;
+    document.getElementById('energy-display').innerText = energy;
+    document.getElementById('wave-display').innerText = `${currentWave} / 5`;
+    document.getElementById('score-display').innerText = score;
+
+    document.getElementById('btn-tower1').disabled = energy < 50;
+    document.getElementById('btn-tower2').disabled = energy < 80;
+    document.getElementById('btn-tower3').disabled = energy < 120;
+}
+
+function updateCooldowns() {
+    for(let k in skills) {
+        const btn = document.getElementById(`btn-skill${k}`);
+        const overlay = document.getElementById(`cd-overlay-${k}`);
+        const text = document.getElementById(`cd-text-${k}`);
+        if(skills[k].currentCd > 0) {
+            skills[k].currentCd--; btn.classList.add('on-cooldown');
+            overlay.style.height = `${(skills[k].currentCd / skills[k].maxCd) * 100}%`;
+            text.innerText = Math.ceil(skills[k].currentCd / 60);
+        } else {
+            btn.classList.remove('on-cooldown'); overlay.style.height = '0%';
+        }
+    }
+}
+
+/**
+ * 7. 메인 루프 & 렌더링
+ */
+function drawMap() {
+    // 1. 잔디 체커보드 및 질감 개선 (자연스러운 디테일 추가)
+    for(let y=0; y<ROWS; y++) {
+        for(let x=0; x<COLS; x++) {
+            ctx.fillStyle = (x+y)%2 === 0 ? '#14532d' : '#166534';
+            ctx.fillRect(x*TILE_SIZE, y*TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            // 풀잎 텍스처
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+            ctx.fillRect(x*TILE_SIZE + 8, y*TILE_SIZE + 8, 6, 6);
+            ctx.fillRect(x*TILE_SIZE + 24, y*TILE_SIZE + 32, 4, 4);
+        }
+    }
+    
+    // 2. 경로 스타일 (어두운 외곽선과 부드러운 흙길)
+    ctx.beginPath(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    
+    ctx.lineWidth = TILE_SIZE; ctx.strokeStyle = '#27272a'; // 테두리
+    if(waypoints.length > 0) {
+        ctx.moveTo(waypoints[0].x, waypoints[0].y);
+        for(let i=1; i<waypoints.length; i++) ctx.lineTo(waypoints[i].x, waypoints[i].y);
+    }
+    ctx.stroke();
+
+    ctx.lineWidth = TILE_SIZE - 6; ctx.strokeStyle = '#713f12'; // 내부 흙길
+    ctx.stroke();
+    
+    // 흙길 디테일 (중앙 점선)
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)'; ctx.setLineDash([10, 15]);
+    ctx.stroke(); ctx.setLineDash([]);
+    
+    // 3. 방어 기지 (CORE) - 사이버네틱 코어 느낌으로 업그레이드
+    const base = pathCoords[pathCoords.length - 1];
+    const bx = base.x * TILE_SIZE, by = base.y * TILE_SIZE;
+    
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(bx + 4, by + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+    ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 2; ctx.strokeRect(bx + 4, by + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+    
+    // 코어 펄스 애니메이션
+    let pulse = Math.abs(Math.sin(Date.now() / 400));
+    ctx.fillStyle = `rgba(59, 130, 246, ${0.4 + pulse * 0.4})`;
+    ctx.beginPath(); ctx.arc(bx + TILE_SIZE/2, by + TILE_SIZE/2, 12 + pulse*4, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(bx + TILE_SIZE/2, by + TILE_SIZE/2, 6, 0, Math.PI*2); ctx.fill();
+    
+    ctx.fillStyle = '#93c5fd'; ctx.font='bold 10px Pretendard'; ctx.textAlign='center';
+    ctx.fillText("CORE", bx + TILE_SIZE/2, by + TILE_SIZE/2 - 18);
+}
+
+function drawPreview() {
+    if (gridX < 0 || gridY < 0) return;
+    if (currentAction === 'build') {
+        const canBuild = grid[gridY][gridX] === 0 && energy >= selectedCost;
+        ctx.fillStyle = canBuild ? 'rgba(57, 255, 20, 0.4)' : 'rgba(239, 68, 68, 0.4)';
+        ctx.fillRect(gridX * TILE_SIZE, gridY * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        
+        let r = selectedType===1 ? 130 : (selectedType===2 ? 110 : 160);
+        ctx.beginPath(); ctx.arc(gridX*TILE_SIZE + TILE_SIZE/2, gridY*TILE_SIZE + TILE_SIZE/2, r, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)'; ctx.fill();
+        ctx.strokeStyle = '#fff'; ctx.setLineDash([4,4]); ctx.stroke(); ctx.setLineDash([]);
+    } else if (currentAction === 'skill') {
+        ctx.beginPath(); ctx.arc(mouseX, mouseY, skills[selectedType].range, 0, Math.PI*2);
+        ctx.fillStyle = skills[selectedType].color; ctx.fill();
+        ctx.strokeStyle = '#fff'; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+    }
+}
+
+function gameLoop() {
+    if (gameState !== 'playing') {
+        animationFrameId = requestAnimationFrame(gameLoop); return;
+    }
+
+    if (hp <= 0 && gameState !== 'ended') showResult(false);
+    
+    updateCooldowns();
+    drawMap();
+
+    if (gameState === 'playing') {
+        handleSpawning();
+
+        for (let i = zones.length - 1; i >= 0; i--) { zones[i].update(i); if(zones[i]) zones[i].draw(); }
+        towers.forEach(t => { t.update(); t.draw(); });
+
+        for (let i = enemies.length - 1; i >= 0; i--) {
+            const e = enemies[i];
+            e.update();
+            if (e.waypointIndex >= waypoints.length) {
+                hp -= e.isBoss ? 10 : 1;
+ EcoFX.notify("bad","방어선 통과 → 생태계 체력 감소. 빈 구간에 타워를 보강하세요."); 
+                enemies.splice(i, 1); updateUI(); continue;
+            }
+            if (e.hp <= 0) {
+                energy += e.reward; score += e.score;
+ EcoFX.notify("good","침입 개체 대응 → 에너지와 점수 획득. 다음 웨이브 방어에 재투자하세요.");
+                addFloatingText(e.x, e.y, `+${e.reward}🌱`, '#39ff14');
+                enemies.splice(i, 1); updateUI();
+                if(e.isBoss) {
+                    enemies = enemies.filter(enemy => enemy.type !== 'tadpole'); 
+                    document.getElementById('boss-ui').style.display = 'none';
+                    setTimeout(() => showResult(true), 1000); 
+                }
+                continue;
+            }
+            e.draw();
+        }
+
+        for (let i = projectiles.length - 1; i >= 0; i--) {
+            projectiles[i].update(i); if (projectiles[i]) projectiles[i].draw();
+        }
+
+        handleParticles(); handleFloatingTexts(); drawPreview();
+    }
+    animationFrameId = requestAnimationFrame(gameLoop);
+}
+
+/**
+ * 8. 시작 & 결과 처리
+ */
+function resetGameData() {
+    hp = MAX_HP; energy = 300; score = 0; currentWave = 0;
+    waveSpawning = false; spawnQueue = []; spawnTimer = 0;
+    enemies = []; towers = []; projectiles = []; particles = []; floatingTexts = []; zones = [];
+    skills[1].currentCd = 0; skills[2].currentCd = 0;
+    document.getElementById('wave-start-btn').disabled = false;
+    document.getElementById('boss-ui').style.display = 'none';
+    clearSelection(); initGrid(); updateUI();
+}
+
+function startGame() {
+    document.getElementById('start-screen').style.opacity = '0';
+    setTimeout(() => document.getElementById('start-screen').style.visibility = 'hidden', 800);
+    document.getElementById('game-container').style.visibility = 'visible';
+    document.getElementById('game-container').style.opacity = '1';
+    
+    resetGameData();
+    gameState = 'playing';
+    if (!animationFrameId) gameLoop();
+}
+
+function restartGame() {
+    document.getElementById('result-modal').style.display = 'none';
+    resetGameData();
+    gameState = 'playing';
+}
+
+function showResult(isWin) { EcoFX.notify(isWin?'win':'bad',isWin?'방어 임무 완료. 남은 생태계 체력을 확인하세요.':'방어 실패. 타워 위치와 에너지 배분을 바꿔 재도전하세요.');
+    if (gameState === 'ended') return; 
+    gameState = 'ended';
+    
+    document.getElementById('result-score').innerText = `최종 스코어: ${score}`;
+    document.getElementById('result-wave').innerText = `버틴 웨이브: ${currentWave} / 5`;
+    
+    const t = document.getElementById('result-title');
+    if(isWin) { t.innerText = "VICTORY!"; t.style.color = "var(--neon-green)"; t.style.textShadow = "0 0 20px var(--neon-green)"; } 
+    else { t.innerText = "SYSTEM DOWN"; t.style.color = "var(--danger)"; t.style.textShadow = "0 0 20px var(--danger)"; }
+    
+    document.getElementById('result-modal').style.display = 'flex';
+}
+
+// Initial draw before start
+initGrid(); drawMap();
+</script>
+<script>
+EcoFX.mount({title:"생태계 방어선",goal:"타워 배치 → 침입 대응 → 생태계 체력 보존 → 다음 웨이브 준비",note:"가상 방어 임무입니다. 실제 외래종 관리는 전문가와 지역 관리 기준을 따릅니다.",read:()=>({label:'생태계 '+hp+'/'+MAX_HP+' · 기록',progress:hp/MAX_HP*100,detail:'웨이브 '+currentWave+'/5 · 체력 '+hp+' · 에너지 '+energy+'. 위험 구간에 방어 시설을 배치하세요.'}),actions:[]});
+</script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+Local copies of existing dependencies. Preserve vendor with the game.
+Tailwind CSS 3.4.17: MIT; https://github.com/tailwindlabs/tailwindcss
+1.js: three.js r128 (MIT), 2.js: PointerLockControls (three.js examples, MIT).
+3.js: Babel standalone (MIT), 4.js: React DOM 18 (MIT), 5.js: React 18 (MIT). Only files required by this game are included. Original license headers are preserved.

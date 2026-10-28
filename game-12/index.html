@@ -1,0 +1,1053 @@
+<!DOCTYPE html>  <!--선생님 안녕하세요 이거 발견하셨나요?-->
+<html lang="ko">
+<head>
+    <meta name="referrer" content="no-referrer">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>심해 정화 낚시 (Deep Sea Guardian)</title>
+    <style>
+        /* 기본 리셋 및 캔버스 중앙 정렬 */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050814;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            border-radius: 12px;
+            box-shadow: 0 0 40px rgba(0, 229, 255, 0.2), 0 0 100px rgba(11, 19, 43, 1);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #shop-ui {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.9);
+            background: rgba(10, 20, 40, 0.85);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(0, 229, 255, 0.5);
+            border-radius: 20px;
+            padding: 30px;
+            width: 450px;
+            text-align: center;
+            color: white;
+            box-shadow: 0 0 30px rgba(0, 229, 255, 0.3), inset 0 0 20px rgba(0, 229, 255, 0.1);
+            display: none;
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 100;
+        }
+
+        #shop-ui.active {
+            display: block;
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        #shop-ui h2 {
+            margin-top: 0;
+            color: #00e5ff;
+            text-shadow: 0 0 10px #00e5ff;
+            font-size: 28px;
+            letter-spacing: 2px;
+        }
+
+        .shop-info {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .shop-btn {
+            background: linear-gradient(135deg, #0077b6, #00b4d8);
+            border: none;
+            color: white;
+            padding: 15px 20px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 15px rgba(0, 180, 216, 0.4);
+            transition: all 0.2s;
+        }
+
+        .shop-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 180, 216, 0.6);
+            filter: brightness(1.2);
+        }
+
+        .shop-btn:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+
+        .shop-btn:disabled {
+            background: #333;
+            color: #777;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+
+        #btn-close-shop {
+            background: transparent;
+            border: 2px solid #ef233c;
+            color: #ef233c;
+            box-shadow: 0 0 10px rgba(239, 35, 60, 0.2);
+        }
+
+        #btn-close-shop:hover {
+            background: #ef233c;
+            color: white;
+            box-shadow: 0 0 20px rgba(239, 35, 60, 0.5);
+        }
+
+        /* 시작화면 UI */
+        #start-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 8, 20, 0.9);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            color: white;
+            transition: opacity 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        #start-screen h1 {
+            color: #00e5ff;
+            text-shadow: 0 0 30px rgba(0, 229, 255, 0.8);
+            font-size: 54px;
+            margin-bottom: 5px;
+            letter-spacing: 3px;
+        }
+
+        #start-screen p {
+            color: #a8dadc;
+            margin-bottom: 40px;
+            font-size: 20px;
+        }
+
+        #player-name-input {
+            padding: 15px 20px;
+            font-size: 22px;
+            border-radius: 12px;
+            border: 2px solid rgba(0, 229, 255, 0.5);
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            outline: none;
+            width: 300px;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        #player-name-input:focus {
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.6);
+            border-color: #00e5ff;
+        }
+
+        .start-btn {
+            background: linear-gradient(135deg, #06d6a0, #00b4d8);
+            border: none;
+            color: white;
+            padding: 15px 50px;
+            font-size: 24px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(6, 214, 160, 0.4);
+            transition: all 0.2s;
+        }
+
+        .start-btn:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 8px 25px rgba(6, 214, 160, 0.6);
+        }
+
+        /* 우측 상단 상점 열기 버튼 */
+        #btn-open-shop {
+            display: none; /* 시작화면에서는 상점 버튼 숨김 */
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 229, 255, 0.1);
+            border: 2px solid #00e5ff;
+            color: #00e5ff;
+            padding: 10px 20px;
+            border-radius: 30px;
+            font-weight: bold;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            transition: all 0.2s;
+            box-shadow: 0 0 10px rgba(0, 229, 255, 0.2);
+        }
+
+        #btn-open-shop:hover {
+            background: rgba(0, 229, 255, 0.3);
+            box-shadow: 0 0 20px rgba(0, 229, 255, 0.5);
+        }
+    </style>
+<script src="eco-feedback.js"></script>
+<style id="final-layout">#game-container{width:min(800px,100vw,133.333vh);height:auto;aspect-ratio:4/3;flex-shrink:0}#shop-ui{box-sizing:border-box;max-width:92%;max-height:94%;overflow:auto}@media(max-width:600px){#start-screen h1{font-size:28px;margin:8px}#start-screen p{font-size:13px;margin:4px 0 12px}#player-name-input{font-size:16px;width:65%;padding:8px;margin-bottom:12px}.start-btn{font-size:17px;padding:10px 25px}#shop-ui{padding:12px}#shop-ui h2{font-size:19px}.shop-info{padding:6px;margin-bottom:8px}.shop-btn{padding:7px;font-size:14px}#btn-open-shop{top:8px;right:8px;padding:5px 10px}}</style></head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    
+    <!-- 시작 화면 UI HTML -->
+    <div id="start-screen">
+        <h1>심해 정화 낚시</h1>
+        <p>선장님의 이름을 입력하고 바다를 정화하세요.</p>
+        <input type="text" id="player-name-input" placeholder="이름을 입력하세요" maxlength="20" autocomplete="off" />
+        <button class="start-btn" onclick="게임_시작하기()">시작(고생)하기</button>
+    </div>
+
+    <button id="btn-open-shop" onclick="열기_상점()">🛒 상점 (S)</button>
+
+    <!-- 상점 UI HTML -->
+    <div id="shop-ui">
+        <h2>장비 업그레이드</h2>
+        <div class="shop-info">
+            <div style="font-size: 14px; color: #ccc;">낚시대를 강화하여 포획 바 크기를 늘리고 상위 어종을 노리세요.</div>
+            <div style="font-size: 22px; font-weight: bold; color: #ffd166; margin-top: 10px;">
+                내 재화: <span id="shop-gold">0</span> G
+            </div>
+            <div style="font-size: 16px; color: #00e5ff; margin-top: 5px;">
+                현재 레벨: <span id="shop-current-lv">1</span> / 10
+            </div>
+        </div>
+        
+        <button class="shop-btn" id="btn-upgrade" onclick="구매_강화()">
+            강화하기 (비용: <span id="shop-cost">50</span> G)
+        </button>
+        <button class="shop-btn" id="btn-close-shop" onclick="닫기_상점()">닫기 (S)</button>
+    </div>
+</div>
+
+<script>
+    /* =========================================================================
+       1. 에셋 플레이스홀더 및 사운드 시스템
+       ========================================================================= */
+    const recoveryBoat=new Image();recoveryBoat.src='assets/generated/recovery-boat.png';
+    const ASSETS = {
+        images: { player: "", fish: "", trash: "", background: "" },
+        sounds: { bgm: "", cast: "", bite: "", reel: "", success: "", fail: "", hit: "", upgrade: "" }
+    };
+
+    function playSound(key) { EcoFX.sound(({success:'good',fail:'bad',hit:'action',upgrade:'win'})[key]||'action');
+        if (ASSETS.sounds[key]) { /* 실제 오디오 재생 로직 */ } 
+        else { /* console.log('[사운드 재생] ' + key); */ } // 로그 스팸 방지용 주석처리
+    }
+
+    /* =========================================================================
+       2. 게임 설정 및 밸런스 데이터 (유저 수정 용이)
+       ========================================================================= */
+    
+    // 타겟(아이템) 등급별 속성 (이동 속도, 빛깔, 가치)
+    const 타겟_설정 = {
+        normal: { speed: 186, color: '#ffffff', glow: '#aaaaaa', basePrice: 15, name: '침수된 폐기물', weight: '2.5kg' },
+        rare:   { speed: 450, color: '#c77dff', glow: '#9d4edd', basePrice: 80, name: '빛나는 전자기기', weight: '5.0kg' },
+        animal: { speed: 800, color: '#ffd166', glow: '#ff9f1c', basePrice: 350, name: '오염된 바다거북', weight: '45.0kg' }
+    };
+
+    const 레벨_데이터 = [
+        { size: 0, cost: 0, targets: [] },
+        { size: 30, cost: 0, targets: ['normal','normal','normal','rare','normal'] },                                // Lv.1: 일반
+        { size: 55, cost: 100, targets: ['normal', 'normal', 'rare'] },           
+        { size: 80, cost: 300, targets: ['normal', 'rare'] },                    
+        { size: 145, cost: 800, targets: ['normal', 'rare', 'rare', 'animal'] },   
+        { size: 100, cost: 2400, targets: ['normal', 'rare', 'animal'] },          
+        { size: 155, cost: 3000, targets: ['rare', 'animal'] },                    
+        { size: 240, cost: 6000, targets: ['rare', 'animal', 'animal'] },          
+        { size: 300, cost: 12000, targets: ['rare', 'animal'] },                   
+        { size: 400, cost: 25000, targets: ['animal'] },                           
+        { size: 550, cost: 50000, targets: ['animal'] }                           
+    ];
+
+    const 바_물리 = {
+        가속도: 8500, 
+        중력: 4500,   
+        마찰력: 0.7  // 제동력 (낮을수록 즉시 멈춤)
+    };
+
+    const 미니게임_UI = { X: 680, Y: 100, 너비: 35, 높이: 400, 타겟크기: 25 };
+
+    /* =========================================================================
+       3. 상태 변수 및 유틸리티
+       ========================================================================= */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let prevTime = 0;
+
+    let recoveredWaste=0,rescuedAnimals=0;
+const 플레이어 = { 이름: '무명 선장', 골드: 0, 레벨: 1 };
+    let 게임상태 = '시작화면'; // '시작화면', '대기', '미니게임', '팝업', '연타정산'
+    const 입력 = { 위: false, 스페이스: false, 클릭: false };
+
+    // 화면 흔들림 및 파티클
+    let 화면흔들림 = 0;
+    let 파티클배열 = [];
+    let 텍스트파티클배열 = []; // 연타 시 떠오르는 골드 텍스트
+    let 배경물방울배열 = [];
+
+    // 수학 및 애니메이션 유틸리티
+    function lerp(a, b, t) { return a + (b - a) * t; }
+    function easeOutBack(x) {
+        const c1 = 1.70158;
+        const c3 = c1 + 1;
+        return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+    }
+    function 유발_화면흔들림(강도) { 화면흔들림 = Math.max(화면흔들림, 강도); }
+
+    function 생성_파티클(x, y, color, count, speed=1, isCoin=false) {
+        for(let i=0; i<count; i++) {
+            파티클배열.push({
+                x: x, y: y,
+                vx: (Math.random() - 0.5) * 500 * speed,
+                vy: (Math.random() - 1.0) * 400 * speed, // 위로 솟구치게
+                life: 1.0, maxLife: 0.5 + Math.random() * 0.5,
+                color: color,
+                size: Math.random() * 6 + 3,
+                isCoin: isCoin
+            });
+        }
+    }
+
+    // 배경 물방울 초기화
+    for(let i=0; i<30; i++) {
+        배경물방울배열.push({
+            x: Math.random() * 800,
+            y: Math.random() * 600,
+            radius: Math.random() * 4 + 2,
+            speed: Math.random() * 50 + 20,
+            wobble: Math.random() * Math.PI * 2
+        });
+    }
+
+    /* =========================================================================
+       4. 미니게임 상태 객체
+       ========================================================================= */
+    const 미니게임 = {
+        바_Y: 0, 바_속도: 0, 시각적_바_Y: 0,
+        타겟_Y: 0, 타겟_목표_Y: 0, 타겟_이동타이머: 0, 시각적_타겟_Y: 0,
+        진행도: 35, 시각적_진행도: 35, // 35%에서 시작 (자비로운 초반)
+        타겟_데이터: null,
+        
+        // 팝업 및 정산용
+        팝업_스케일: 0,
+        팝업_타이머: 0,
+        정산_시간: 0,
+        연타_횟수: 0,
+        텍스트_스케일: 1.0
+    };
+
+    function 미니게임_초기화() {
+        const 현재스탯 = 레벨_데이터[플레이어.레벨];
+        
+        // [핵심] 타겟과 포획 바를 무조건 UI 정중앙(Center)에 스폰
+        미니게임.바_Y = (미니게임_UI.높이 / 2) - (현재스탯.size / 2);
+        미니게임.시각적_바_Y = 미니게임.바_Y;
+        미니게임.바_속도 = 0;
+
+        미니게임.타겟_Y = (미니게임_UI.높이 / 2) - (미니게임_UI.타겟크기 / 2);
+        미니게임.타겟_목표_Y = 미니게임.타겟_Y;
+        미니게임.시각적_타겟_Y = 미니게임.타겟_Y;
+        미니게임.타겟_이동타이머 = 0;
+
+        미니게임.진행도 = 35; 
+        미니게임.시각적_진행도 = 35;
+
+        // 확률에 따른 타겟 선정
+        const 등장가능목록 = 현재스탯.targets;
+        const 랜덤타겟 = 등장가능목록[Math.floor(Math.random() * 등장가능목록.length)];
+        미니게임.타겟_데이터 = 타겟_설정[랜덤타겟];
+    }
+
+    /* =========================================================================
+       5. 입력 처리
+       ========================================================================= */
+    window.addEventListener('keydown', (e) => {
+        if (게임상태 === '시작화면') {
+            if (e.code === 'Enter') 게임_시작하기();
+            return; // 시작화면에선 다른 키 입력 무시
+        }
+        
+        if (e.code === 'ArrowUp' || e.code === 'KeyW') 입력.위 = true;
+        if (e.code === 'KeyS') {
+            if (게임상태 === '대기') 열기_상점();
+            else if (document.getElementById('shop-ui').classList.contains('active')) 닫기_상점();
+        }
+        if (e.code === 'Space') {
+            입력.스페이스 = true;
+            스페이스바_처리();
+        }
+    });
+
+    window.addEventListener('keyup', (e) => {
+        if (e.code === 'ArrowUp' || e.code === 'KeyW') 입력.위 = false;
+        if (e.code === 'Space') 입력.스페이스 = false;
+    });
+
+    canvas.addEventListener('mousedown', () => { 입력.클릭 = true; 입력.위 = true; });
+    canvas.addEventListener('mouseup', () => { 입력.클릭 = false; 입력.위 = false; });
+    canvas.addEventListener('touchstart', (e) => { 입력.위 = true; e.preventDefault(); }, {passive: false});
+    canvas.addEventListener('touchend', (e) => { 입력.위 = false; e.preventDefault(); }, {passive: false});
+
+    function 스페이스바_처리() {
+        if (게임상태 === '시작화면') return; // 시작화면에선 무시
+
+        if (게임상태 === '대기') {
+            게임상태 = '미니게임';
+            미니게임_초기화();
+            playSound('cast');
+            유발_화면흔들림(5);
+        } 
+        else if (게임상태 === '팝업') {
+            // 팝업 스킵 후 바로 연타 정산 돌입
+            게임상태 = '연타정산';
+            미니게임.정산_시간 = 3.0;
+            미니게임.연타_횟수 = 0;
+            미니게임.텍스트_스케일 = 1.0;
+        }
+        else if (게임상태 === '연타정산') {
+            미니게임.연타_횟수++;
+            미니게임.텍스트_스케일 = 1.4; // 텍스트 펌핑
+            유발_화면흔들림(8); // 타격감
+            playSound('hit');
+            
+            // 골드 파티클 및 플로팅 텍스트
+            생성_파티클(400, 450, "#ffd166", 5, 0.8, true);
+            let 콤보가치 = Math.floor(미니게임.타겟_데이터.basePrice * 0.1);
+            텍스트파티클배열.push({
+                x: 400 + (Math.random()-0.5)*150,
+                y: 400 + (Math.random()-0.5)*100,
+                text: `+${콤보가치} G`,
+                alpha: 1.0
+            });
+        }
+    }
+
+    /* =========================================================================
+       6. 게임 로직 업데이트
+       ========================================================================= */
+    function 업데이트(dt) {
+        // 배경 파티클 업데이트
+        배경물방울배열.forEach(b => {
+            b.y -= b.speed * dt;
+            b.x += Math.sin(b.wobble) * 0.5;
+            b.wobble += dt * 2;
+            if (b.y < -10) { b.y = 610; b.x = Math.random() * 800; }
+        });
+
+        // 특수 파티클 업데이트
+        for (let i = 파티클배열.length - 1; i >= 0; i--) {
+            let p = 파티클배열[i];
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.vy += 800 * dt; // 중력
+            p.life -= dt;
+            if (p.life <= 0) 파티클배열.splice(i, 1);
+        }
+
+        // 플로팅 텍스트 업데이트
+        for (let i = 텍스트파티클배열.length - 1; i >= 0; i--) {
+            let tp = 텍스트파티클배열[i];
+            tp.y -= 150 * dt;
+            tp.alpha -= dt * 1.5;
+            if (tp.alpha <= 0) 텍스트파티클배열.splice(i, 1);
+        }
+
+        if (화면흔들림 > 0) {
+            화면흔들림 -= dt * 30;
+            if (화면흔들림 < 0) 화면흔들림 = 0;
+        }
+
+        const 현재스탯 = 레벨_데이터[플레이어.레벨];
+        const 바_크기 = 현재스탯.size;
+
+        if (게임상태 === '미니게임') {
+            // 1. 포획 바 물리 로직 (Snappy)
+            let 입력가속도 = 입력.위 ? 바_물리.가속도 : 0;
+            미니게임.바_속도 += (입력가속도 - 바_물리.중력) * dt;
+            미니게임.바_속도 *= 바_물리.마찰력;
+            미니게임.바_Y -= 미니게임.바_속도 * dt; // 위가 -Y이므로 빼줌
+
+            // 바운더리 체크
+            if (미니게임.바_Y < 0) { 미니게임.바_Y = 0; 미니게임.바_속도 = 0; }
+            if (미니게임.바_Y > 미니게임_UI.높이 - 바_크기) { 
+                미니게임.바_Y = 미니게임_UI.높이 - 바_크기; 
+                미니게임.바_속도 = 0; 
+            }
+            미니게임.시각적_바_Y = lerp(미니게임.시각적_바_Y, 미니게임.바_Y, dt * 25);
+
+            // 2. 타겟 AI 로직
+            미니게임.타겟_이동타이머 -= dt;
+            if (미니게임.타겟_이동타이머 <= 0) {
+                미니게임.타겟_목표_Y = Math.random() * (미니게임_UI.높이 - 미니게임_UI.타겟크기);
+                // 난이도(속도)에 비례하여 타이머 짧아짐
+                미니게임.타겟_이동타이머 = 0.3 + Math.random() * (500 / 미니게임.타겟_데이터.speed);
+            }
+            // 타겟 이동 Lerp (속도 비례)
+            let 이동보간율 = (미니게임.타겟_데이터.speed / 100) * dt;
+            미니게임.타겟_Y = lerp(미니게임.타겟_Y, 미니게임.타겟_목표_Y, 이동보간율);
+            미니게임.시각적_타겟_Y = lerp(미니게임.시각적_타겟_Y, 미니게임.타겟_Y, dt * 20);
+
+            // 3. 진행도(Gauge) 로직
+            let 타겟중심 = 미니게임.타겟_Y + 미니게임_UI.타겟크기 / 2;
+            let 바상단 = 미니게임.바_Y;
+            let 바하단 = 미니게임.바_Y + 바_크기;
+
+            if (타겟중심 >= 바상단 && 타겟중심 <= 바하단) {
+                미니게임.진행도 += 25 * dt; // 차오르는 속도
+            } else {
+                미니게임.진행도 -= 15 * dt; // 깎이는 속도 (자비롭게 설정)
+            }
+            미니게임.시각적_진행도 = lerp(미니게임.시각적_진행도, 미니게임.진행도, dt * 10);
+
+            if (미니게임.진행도 >= 100) {
+                // 포획 성공!
+                미니게임.진행도 = 100;
+                게임상태 = '팝업';
+                미니게임.팝업_스케일 = 0;
+                미니게임.팝업_타이머 = 2.0;
+                playSound('success');
+                생성_파티클(미니게임_UI.X, 미니게임_UI.Y + 미니게임.바_Y, 미니게임.타겟_데이터.color, 50, 1.5);
+                유발_화면흔들림(15);
+            } else if (미니게임.진행도 <= 0) {
+                // 포획 실패
+                미니게임.진행도 = 0;
+                게임상태 = '대기';
+                playSound('fail');
+ EcoFX.notify("bad","회수 실패. 막대를 목표에 맞춰 유지하고 Space로 다시 시도하세요.");
+                유발_화면흔들림(10);
+            }
+        } 
+        else if (게임상태 === '팝업') {
+            // 바운스 효과를 위한 오버슈팅 수학 적용 (팝업 크기)
+            if (미니게임.팝업_스케일 < 1) {
+                미니게임.팝업_스케일 += dt * 2.5; // 속도
+                if (미니게임.팝업_스케일 > 1) 미니게임.팝업_스케일 = 1;
+            }
+            미니게임.팝업_타이머 -= dt;
+            if (미니게임.팝업_타이머 <= 0) {
+                게임상태 = '연타정산';
+                미니게임.정산_시간 = 3.0;
+                미니게임.연타_횟수 = 0;
+                미니게임.텍스트_스케일 = 1.0;
+            }
+        }
+        else if (게임상태 === '연타정산') {
+            미니게임.정산_시간 -= dt;
+            if (미니게임.텍스트_스케일 > 1.0) {
+                미니게임.텍스트_스케일 -= dt * 2.0;
+                if (미니게임.텍스트_스케일 < 1.0) 미니게임.텍스트_스케일 = 1.0;
+            }
+
+            if (미니게임.정산_시간 <= 0) {
+                // 정산 완료
+                let 배율 = 1.0 + (미니게임.연타_횟수 * 0.1); // 1타당 10% 추가금
+                let 획득금액 = Math.floor(미니게임.타겟_데이터.basePrice * 배율);
+                플레이어.골드 += 획득금액; if(미니게임.타겟_데이터===타겟_설정.animal)rescuedAnimals++;else recoveredWaste++;
+ EcoFX.notify("good","회수·구조 정산 완료 → 지원금 획득. 장비 보강으로 다음 임무를 준비하세요.");
+                
+                생성_파티클(400, 300, "#ffd166", 80, 2.0, true);
+                업데이트_DOM();
+                게임상태 = '대기';
+            }
+        }
+    }
+
+    /* =========================================================================
+       7. 렌더링 (Draw) - Technical Artist 수준 시각화
+       ========================================================================= */
+    function drawRoundRect(ctx, x, y, w, h, r, fill, stroke) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+        ctx.lineTo(x + r, y + h);
+        ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+        if (fill) ctx.fill();
+        if (stroke) ctx.stroke();
+    }
+
+    function 그리기() {
+        ctx.save();
+        // 화면 흔들림 적용
+        if (화면흔들림 > 0) {
+            let dx = (Math.random() - 0.5) * 화면흔들림;
+            let dy = (Math.random() - 0.5) * 화면흔들림;
+            ctx.translate(dx, dy);
+        }
+
+        // 1. 고급스러운 심해 배경 (Linear Gradient)
+        let bgGradient = ctx.createLinearGradient(0, 0, 0, 600);
+        bgGradient.addColorStop(0, "#0b132b"); // 진한 남색
+        bgGradient.addColorStop(1, "#1c2541"); // 약간 밝은 남색
+        ctx.fillStyle = bgGradient;
+        ctx.fillRect(0, 0, 800, 600);
+
+        // 2. 배경 파티클 (물방울)
+        ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
+        배경물방울배열.forEach(b => {
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        // 3. UI 그리기
+        ctx.fillStyle = "white";
+        ctx.font = "bold 18px 'Malgun Gothic'";
+        ctx.textAlign = "left";
+        ctx.fillText(`👤 선장: ${플레이어.이름}`, 20, 35);
+        
+        // 골드가 마이너스(빚)일 경우 빨간색 경고 표시
+        if (플레이어.골드 < 0) {
+            ctx.fillStyle = "#ef233c";
+            ctx.fillText(`💰 재화: ${플레이어.골드} G (빚)`, 20, 65);
+        } else {
+            ctx.fillStyle = "white";
+            ctx.fillText(`💰 재화: ${플레이어.골드} G`, 20, 65);
+        }
+        
+        ctx.fillStyle = "white";
+        ctx.fillText(`🎣 낚싯대 Lv.${플레이어.레벨}`, 20, 95);
+
+        // 다음 낚싯대까지 남은 돈 표시
+        ctx.font = "14px 'Malgun Gothic'";
+        let 다음레벨 = 플레이어.레벨 + 1;
+        if (다음레벨 < 레벨_데이터.length) {
+            let 남은돈 = 레벨_데이터[다음레벨].cost - 플레이어.골드;
+            if (남은돈 > 0) {
+                ctx.fillStyle = "#a8dadc";
+                ctx.fillText(`(다음 강화까지: ${남은돈} G)`, 25, 115);
+            } else {
+                ctx.fillStyle = "#00e5ff"; // 강화 가능할 때 네온 효과 느낌
+                ctx.fillText(`(강화 가능!)`, 25, 115);
+            }
+        } else {
+            ctx.fillStyle = "#ffd166";
+            ctx.fillText(`(MAX 레벨)`, 25, 115);
+        }
+
+        // 4. 중앙 캐릭터 / 보트 (단순하지만 세련된 도형 조합)
+        ctx.save();
+        ctx.translate(350, 450);
+        if(recoveryBoat.complete&&recoveryBoat.naturalWidth){ctx.drawImage(recoveryBoat,39,112,1461,788,-120,-85,240,129);}else{
+        // 배 몸통
+        ctx.fillStyle = "#e07a5f"; // 배 색상 (따뜻한 주황빛)
+        ctx.beginPath(); ctx.moveTo(-70, 0); ctx.lineTo(70, 0); ctx.lineTo(50, 40); ctx.lineTo(-50, 40); ctx.fill();
+        ctx.fillStyle = "#3d405b"; ctx.fillRect(-80, -10, 160, 10); // 배 난간
+        
+        // 낚시꾼 (밀짚모자와 노란 우비)
+        // 몸통 (우비)
+        ctx.fillStyle = "#ffd166";
+        ctx.beginPath(); ctx.arc(0, -15, 18, Math.PI, 0); ctx.fill();
+        ctx.fillRect(-18, -15, 36, 15);
+        // 머리 (피부)
+        ctx.fillStyle = "#fcd5ce";
+        ctx.beginPath(); ctx.arc(0, -30, 12, 0, Math.PI*2); ctx.fill();
+        // 눈
+        ctx.fillStyle = "#333";
+        ctx.beginPath(); ctx.arc(-5, -32, 2, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(5, -32, 2, 0, Math.PI*2); ctx.fill();
+        // 밀짚모자
+        ctx.fillStyle = "#e9c46a";
+        ctx.beginPath(); ctx.ellipse(0, -42, 25, 6, 0, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0, -42, 14, Math.PI, 0); ctx.fill();
+
+        }
+        // 낚싯대
+        ctx.strokeStyle = "#8b5a2b"; // 나무색
+        ctx.lineWidth = 5;
+        ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(15, -25); ctx.lineTo(160, -110); ctx.stroke();
+        
+        // 낚싯줄
+        ctx.strokeStyle = "rgba(255,255,255,0.6)";
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(160, -110); 
+        if(게임상태 === '미니게임') {
+            ctx.lineTo(미니게임_UI.X - 350, 미니게임_UI.Y + 미니게임.시각적_타겟_Y - 450);
+        } else {
+            ctx.lineTo(160, 0);
+        }
+        ctx.stroke();
+        ctx.restore();
+
+        // 대기 상태 안내 텍스트 (Pulse 애니메이션)
+        if (게임상태 === '대기') {
+            let pulse = Math.abs(Math.sin(Date.now() / 300));
+            ctx.textAlign = "center";
+            ctx.font = "bold 28px 'Malgun Gothic'";
+            ctx.fillStyle = `rgba(0, 229, 255, ${0.5 + pulse * 0.5})`;
+            ctx.shadowBlur = 10; ctx.shadowColor = "#00e5ff";
+            ctx.fillText("SPACE 바를 눌러 낚시 시작!", 400, 250);
+            ctx.shadowBlur = 0;
+        }
+
+        // 파티클 (물리)
+        파티클배열.forEach(p => {
+            ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+            ctx.fill();
+            if(p.isCoin) { // 동전은 윤곽선 추가
+                ctx.strokeStyle = "rgba(255,255,255,0.8)";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        });
+        ctx.globalAlpha = 1.0;
+
+        // ================= 미니게임 렌더링 =================
+        if (게임상태 === '미니게임') {
+            const ui = 미니게임_UI;
+            const 스탯 = 레벨_데이터[플레이어.레벨];
+
+            // 바탕 프레임 (네온 글래스모피즘 느낌)
+            ctx.fillStyle = "rgba(10, 20, 40, 0.7)";
+            ctx.strokeStyle = "rgba(0, 229, 255, 0.5)";
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 15; ctx.shadowColor = "#00e5ff";
+            drawRoundRect(ctx, ui.X, ui.Y, ui.너비, ui.높이, 10, true, true);
+            ctx.shadowBlur = 0;
+
+            // 포획 바 (타겟이 안에 있으면 더 밝게 빛남)
+            let 타겟중심 = 미니게임.시각적_타겟_Y + ui.타겟크기/2;
+            let 매칭중 = (타겟중심 >= 미니게임.시각적_바_Y && 타겟중심 <= 미니게임.시각적_바_Y + 스탯.size);
+            
+            ctx.fillStyle = 매칭중 ? "rgba(0, 255, 255, 0.6)" : "rgba(0, 180, 216, 0.3)";
+            ctx.strokeStyle = 매칭중 ? "#ffffff" : "#00e5ff";
+            ctx.lineWidth = 2;
+            drawRoundRect(ctx, ui.X + 2, ui.Y + 미니게임.시각적_바_Y, ui.너비 - 4, 스탯.size, 5, true, true);
+
+            // 타겟 렌더링 (도형으로 직접 그린 에셋)
+            ctx.save();
+            ctx.translate(ui.X + ui.너비/2, ui.Y + 미니게임.시각적_타겟_Y + ui.타겟크기/2);
+            ctx.shadowBlur = 15; ctx.shadowColor = 미니게임.타겟_데이터.glow;
+            
+            if (미니게임.타겟_데이터.name === '침수된 폐기물') {
+                // 찌그러진 캔
+                ctx.fillStyle = "#ccc";
+                ctx.beginPath(); ctx.ellipse(0, -8, 8, 3, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillRect(-8, -8, 16, 16);
+                ctx.fillStyle = "#999";
+                ctx.beginPath(); ctx.ellipse(0, 8, 8, 3, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = "#555"; ctx.fillRect(-4, -4, 8, 8); // 라벨
+            } else if (미니게임.타겟_데이터.name === '빛나는 전자기기') {
+                // 스마트폰
+                ctx.fillStyle = "#333";
+                drawRoundRect(ctx, -10, -12, 20, 24, 3, true, false);
+                ctx.fillStyle = 미니게임.타겟_데이터.color; // 보라색 화면
+                ctx.fillRect(-7, -9, 14, 15);
+            } else if (미니게임.타겟_데이터.name === '오염된 바다거북') {
+                // 바다거북
+                ctx.fillStyle = "#4a7c59"; // 등껍질
+                ctx.beginPath(); ctx.ellipse(0, 0, 12, 14, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = "#8fc0a9"; // 머리, 다리
+                ctx.beginPath(); ctx.arc(0, -15, 6, 0, Math.PI*2); ctx.fill(); // 머리
+                ctx.beginPath(); ctx.ellipse(-12, -8, 6, 4, Math.PI/4, 0, Math.PI*2); ctx.fill(); // 왼앞발
+                ctx.beginPath(); ctx.ellipse(12, -8, 6, 4, -Math.PI/4, 0, Math.PI*2); ctx.fill(); // 오른앞발
+                // 그물에 걸린 표현 (빨간 선)
+                ctx.strokeStyle = "#ef233c"; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(-10, -10); ctx.lineTo(10, 10); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(10, -10); ctx.lineTo(-10, 10); ctx.stroke();
+            } else {
+                // 기본 네모 모양 (Fallback)
+                ctx.fillStyle = 미니게임.타겟_데이터.color;
+                drawRoundRect(ctx, -ui.타겟크기/2, -ui.타겟크기/2, ui.타겟크기, ui.타겟크기, 4, true, false);
+            }
+            ctx.restore();
+            ctx.shadowBlur = 0;
+
+            // 진행도 게이지바 (오른쪽 작은 바)
+            let 게이지X = ui.X + ui.너비 + 10;
+            ctx.fillStyle = "rgba(0,0,0,0.6)";
+            drawRoundRect(ctx, 게이지X, ui.Y, 15, ui.높이, 8, true, false);
+
+            let 게이지높이 = (미니게임.시각적_진행도 / 100) * (ui.높이 - 4);
+            let fillY = ui.Y + ui.높이 - 2 - 게이지높이;
+            
+            // 게이지 그라데이션 (빨강 -> 노랑 -> 초록)
+            let 게이지색상 = ctx.createLinearGradient(0, ui.Y + ui.높이, 0, ui.Y);
+            게이지색상.addColorStop(0, "#ef233c");
+            게이지색상.addColorStop(0.5, "#ffd166");
+            게이지색상.addColorStop(1, "#06d6a0");
+            
+            ctx.fillStyle = 게이지색상;
+            ctx.shadowBlur = 10; ctx.shadowColor = "#06d6a0";
+            drawRoundRect(ctx, 게이지X + 2, fillY, 11, 게이지높이, 5, true, false);
+            ctx.shadowBlur = 0;
+        }
+
+        // ================= 획득 팝업 (Fisch 스타일 바운스) =================
+        if (게임상태 === '팝업') {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+            ctx.fillRect(0, 0, 800, 600);
+
+            let scale = easeOutBack(미니게임.팝업_스케일);
+            ctx.save();
+            ctx.translate(400, 300);
+            ctx.scale(scale, scale);
+
+            // 팝업 패널
+            ctx.shadowBlur = 40; ctx.shadowColor = 미니게임.타겟_데이터.glow;
+            ctx.fillStyle = "rgba(10, 20, 30, 0.95)";
+            ctx.strokeStyle = 미니게임.타겟_데이터.color;
+            ctx.lineWidth = 4;
+            drawRoundRect(ctx, -150, -200, 300, 400, 20, true, true);
+            ctx.shadowBlur = 0;
+
+            // 아이템 이미지(도형) 배경
+            ctx.fillStyle = "rgba(255,255,255,0.1)";
+            drawRoundRect(ctx, -60, -160, 120, 120, 15, true, false);
+            
+            // 아이템 팝업 확대 렌더링
+            ctx.save();
+            ctx.translate(0, -100);
+            ctx.scale(2.5, 2.5); // 팝업창에서는 2.5배 크게 표시
+            ctx.shadowBlur = 10; ctx.shadowColor = 미니게임.타겟_데이터.glow;
+            
+            if (미니게임.타겟_데이터.name === '침수된 폐기물') {
+                ctx.fillStyle = "#ccc";
+                ctx.beginPath(); ctx.ellipse(0, -8, 8, 3, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillRect(-8, -8, 16, 16);
+                ctx.fillStyle = "#999";
+                ctx.beginPath(); ctx.ellipse(0, 8, 8, 3, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = "#555"; ctx.fillRect(-4, -4, 8, 8);
+            } else if (미니게임.타겟_데이터.name === '빛나는 전자기기') {
+                ctx.fillStyle = "#333";
+                drawRoundRect(ctx, -10, -12, 20, 24, 3, true, false);
+                ctx.fillStyle = 미니게임.타겟_데이터.color;
+                ctx.fillRect(-7, -9, 14, 15);
+            } else if (미니게임.타겟_데이터.name === '오염된 바다거북') {
+                ctx.fillStyle = "#4a7c59";
+                ctx.beginPath(); ctx.ellipse(0, 0, 12, 14, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = "#8fc0a9";
+                ctx.beginPath(); ctx.arc(0, -15, 6, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(-12, -8, 6, 4, Math.PI/4, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.ellipse(12, -8, 6, 4, -Math.PI/4, 0, Math.PI*2); ctx.fill();
+                ctx.strokeStyle = "#ef233c"; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(-10, -10); ctx.lineTo(10, 10); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(10, -10); ctx.lineTo(-10, 10); ctx.stroke();
+            } else {
+                ctx.fillStyle = 미니게임.타겟_데이터.color;
+                ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill();
+            }
+            ctx.restore();
+            ctx.shadowBlur = 0;
+
+            // 텍스트 정보
+            ctx.textAlign = "center";
+            ctx.fillStyle = "white";
+            ctx.font = "bold 26px 'Malgun Gothic'";
+            ctx.fillText(미니게임.타겟_데이터.name, 0, 10);
+            
+            ctx.fillStyle = "#a8dadc";
+            ctx.font = "18px 'Malgun Gothic'";
+            ctx.fillText(`무게: ${미니게임.타겟_데이터.weight}`, 0, 50);
+
+            ctx.fillStyle = "#ffd166";
+            ctx.font = "bold 22px 'Malgun Gothic'";
+            ctx.fillText(`기본 가치: ${미니게임.타겟_데이터.basePrice} G`, 0, 90);
+
+            // 스페이스바 안내 (깜빡임)
+            let pulse = Math.abs(Math.sin(Date.now() / 200));
+            ctx.fillStyle = `rgba(0, 229, 255, ${0.4 + pulse * 0.6})`;
+            ctx.font = "bold 20px 'Malgun Gothic'";
+            ctx.fillText("SPACE 바를 눌러 정산 시작!", 0, 150);
+
+            ctx.restore();
+        }
+
+        // ================= 연타 정산 모드 =================
+        if (게임상태 === '연타정산') {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
+            ctx.fillRect(0, 0, 800, 600);
+
+            ctx.textAlign = "center";
+            ctx.font = "bold 45px 'Malgun Gothic'";
+            ctx.fillStyle = "#ffffff";
+            ctx.shadowBlur = 10; ctx.shadowColor = "#00e5ff";
+            ctx.fillText("가치 폭등 중! 연타하세요!", 400, 150);
+            ctx.shadowBlur = 0;
+
+            // 제한시간 텍스트 색상 변경 (1초 미만 시 빨간색)
+            ctx.fillStyle = 미니게임.정산_시간 < 1.0 ? "#ef233c" : "#ffd166";
+            ctx.font = "bold 30px 'Malgun Gothic'";
+            ctx.fillText(`제한 시간: ${미니게임.정산_시간.toFixed(1)}초`, 400, 220);
+
+            // 콤보 텍스트 (스케일 펌핑)
+            ctx.save();
+            ctx.translate(400, 350);
+            ctx.scale(미니게임.텍스트_스케일, 미니게임.텍스트_스케일);
+            ctx.fillStyle = "#ef233c";
+            ctx.font = "bold 80px Arial";
+            ctx.shadowBlur = 20; ctx.shadowColor = "#ff0000";
+            ctx.strokeStyle = "white"; ctx.lineWidth = 4;
+            ctx.strokeText(`${미니게임.연타_횟수} HIT!`, 0, 0);
+            ctx.fillText(`${미니게임.연타_횟수} HIT!`, 0, 0);
+            ctx.restore();
+
+            ctx.fillStyle = "#06d6a0";
+            ctx.font = "bold 24px 'Malgun Gothic'";
+            ctx.fillText(`현재 보너스: +${(미니게임.연타_횟수 * 10)}%`, 400, 450);
+
+            // 연타 플로팅 텍스트 렌더링
+            텍스트파티클배열.forEach(tp => {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, tp.alpha);
+                ctx.fillStyle = "#ffd166";
+                ctx.font = "bold 28px Arial";
+                ctx.shadowBlur = 5; ctx.shadowColor = "#000";
+                ctx.fillText(tp.text, tp.x, tp.y);
+                ctx.restore();
+            });
+        }
+
+        ctx.restore(); // 전체 상태 복구
+    }
+
+    /* =========================================================================
+       8. 상점 및 DOM 관리 (HTML Overlay)
+       ========================================================================= */
+    function 업데이트_DOM() {
+        document.getElementById('shop-gold').innerText = 플레이어.골드;
+        document.getElementById('shop-current-lv').innerText = 플레이어.레벨;
+        
+        let 다음레벨 = 플레이어.레벨 + 1;
+        let btn = document.getElementById('btn-upgrade');
+        
+        if (다음레벨 >= 레벨_데이터.length) {
+            btn.innerText = "MAX 레벨 달성!";
+            btn.disabled = true;
+        } else {
+            let 비용 = 레벨_데이터[다음레벨].cost;
+            document.getElementById('shop-cost').innerText = 비용;
+            btn.disabled = (플레이어.골드 < 비용);
+        }
+    }
+
+    window.열기_상점 = function() {
+        if (게임상태 !== '대기') return; // 게임 중 오픈 금지
+        document.getElementById('shop-ui').classList.add('active');
+        document.getElementById('btn-open-shop').style.display = 'none';
+        업데이트_DOM();
+    };
+
+    window.닫기_상점 = function() {
+        document.getElementById('shop-ui').classList.remove('active');
+        document.getElementById('btn-open-shop').style.display = 'block';
+    };
+
+    // --- 게임 시작 버튼 처리 로직 ---
+    window.게임_시작하기 = function() { recoveredWaste=0;rescuedAnimals=0;플레이어.레벨=1;
+        let 입력된이름 = document.getElementById('player-name-input').value.trim();
+        
+        // 글자수 제한 20자로 안전하게 자르기
+        if (입력된이름.length > 20) {
+            입력된이름 = 입력된이름.substring(0, 20);
+        }
+
+        플레이어.이름 = 입력된이름 ? 입력된이름 : "무명 선장";
+
+        // 이스터에그 (핸디캡)
+        if (플레이어.이름 === "준서맘") {
+            플레이어.골드 = -1000;
+        } else {
+            플레이어.골드 = 0;
+        }
+
+        // 시작화면 페이드아웃 효과
+        const 시작화면DOM = document.getElementById('start-screen');
+        시작화면DOM.style.opacity = '0';
+        
+        setTimeout(() => {
+            시작화면DOM.style.display = 'none';
+            document.getElementById('btn-open-shop').style.display = 'block';
+            게임상태 = '대기';
+            업데이트_DOM();
+        }, 500);
+        
+        playSound('success'); // 시작 알림음
+    };
+
+    window.구매_강화 = function() {
+        let 다음레벨 = 플레이어.레벨 + 1;
+        if (다음레벨 < 레벨_데이터.length) {
+            let 비용 = 레벨_데이터[다음레벨].cost;
+            if (플레이어.골드 >= 비용) {
+                플레이어.골드 -= 비용;
+                플레이어.레벨++;
+                playSound('upgrade');
+                업데이트_DOM();
+                
+                // 강화 성공 이펙트
+                유발_화면흔들림(10);
+                생성_파티클(400, 300, "#00e5ff", 60, 2.0);
+            }
+        }
+    };
+
+    /* =========================================================================
+       9. 메인 게임 루프
+       ========================================================================= */
+    function 게임루프(timestamp) {
+        if (!prevTime) prevTime = timestamp;
+        let dt = (timestamp - prevTime) / 1000;
+        prevTime = timestamp;
+
+        if (dt > 0.1) dt = 0.1; // 탭 이동 시 델타타임 폭발 방지
+
+        // 상점이 열려있지 않을 때만 로직 업데이트
+        if (!document.getElementById('shop-ui').classList.contains('active')) {
+            업데이트(dt);
+        }
+        
+        그리기();
+        requestAnimationFrame(게임루프);
+    }
+
+    // 초기화 및 실행
+    window.onload = () => {
+        업데이트_DOM();
+        requestAnimationFrame(게임루프);
+    };
+
+</script>
+<script>
+EcoFX.mount({title:"심해 회수와 생물 구조",goal:"낚싯줄 조작 → 폐기물 회수 또는 생물 구조 → 지원금으로 장비 보강",note:"금액은 가상 지원금입니다. 야생동물은 판매 대상이 아니며 실제 구조는 전문기관에 맡깁니다.",read:()=>({label:'회수 '+recoveredWaste+' / 구조 '+rescuedAnimals,progress:Math.min(100,(recoveredWaste+rescuedAnimals)*10),detail:'폐기물 '+recoveredWaste+'건 · 생물 구조 '+rescuedAnimals+'건. 10건을 첫 연습 목표로 삼아보세요. 계속 플레이할 수 있습니다.'}),actions:[{label:'새 임무로 재시작',run:()=>location.reload()}]});
+</script>
+</body>
+</html>

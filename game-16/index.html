@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta name="referrer" content="no-referrer">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>블루 발라스트: 푸른 바다의 파수꾼</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap');
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+            font-family: 'Gowun Dodum', sans-serif;
+            background-color: #1a100c;
+            user-select: none;
+            image-rendering: pixelated;
+        }
+
+        #gameCanvas {
+            display: block; width: 100%; height: 100%;
+            image-rendering: pixelated;
+        }
+
+        /* UI Overlays */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+        }
+
+        /* 스타듀밸리 스타일 클래식 오렌지-목재 패널 */
+        .hud-panel {
+            position: absolute; background: #ffdfa9;
+            border: 4px solid #5c2c16; border-radius: 8px; padding: 10px 18px;
+            box-shadow: inset -4px -4px 0px #d48e42, inset 4px 4px 0px #fff1d0, 0 6px 0 #2d1307;
+            pointer-events: auto; color: #4a210d;
+            font-weight: bold;
+        }
+
+        #money-display { top: 20px; left: 20px; font-size: 22px; display: flex; align-items: center; gap: 8px; }
+        
+        #status-board {
+            top: 80px; left: 20px; 
+            background: #ffeaaf;
+            border: 4px solid #5c2c16; 
+            box-shadow: inset -4px -4px 0px #d48e42, inset 4px 4px 0px #fff8e1, 0 6px 0 #2d1307;
+            display: none; flex-direction: column; gap: 6px;
+            font-size: 15px; pointer-events: none;
+            border-radius: 8px; color: #4a210d;
+        }
+        .status-alien { color: #b71c1c; text-shadow: 1px 1px 0 rgba(255,255,255,0.6); }
+        .status-purified { color: #1b5e20; text-shadow: 1px 1px 0 rgba(255,255,255,0.6); }
+
+        /* 클리어 팝업 */
+        #completion-popup {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0);
+            background: #ffdfa9; 
+            border: 6px solid #5c2c16; border-radius: 12px;
+            padding: 25px 35px; text-align: center; color: #4a210d; z-index: 300;
+            box-shadow: inset -6px -6px 0px #d48e42, inset 6px 6px 0px #fff1d0, 0 12px 24px rgba(0,0,0,0.6); 
+            pointer-events: none;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        #completion-popup h2 { margin-top: 0; color: #b73e00; font-size: 26px; text-shadow: 1px 1px 0px #fff; }
+        #completion-popup p { font-size: 18px; font-weight: bold; margin-bottom: 0; }
+
+        #tool-display {
+            bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 12px; display: none;
+        }
+        .tool-slot {
+            width: 70px; height: 70px; border: 4px solid #5c2c16; border-radius: 8px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: #e1b272; cursor: pointer; transition: all 0.15s;
+            font-size: 12px; text-align: center; color: #3e1b09; font-weight: bold;
+            box-shadow: inset -4px -4px 0px #a77038, inset 4px 4px 0px #f8e1b8, 0 4px 0 #2d1307;
+        }
+        .tool-slot.active { border-color: #f39c12; background: #9bd272; transform: translateY(-4px); box-shadow: inset -4px -4px 0px #609638, inset 4px 4px 0px #dcf3be, 0 8px 0 #2d1307; }
+        .tool-num { font-weight: bold; font-size: 15px; color: #7f3000; margin-bottom: 2px; }
+
+        #btn-return {
+            position: absolute; top: 20px; right: 20px;
+            padding: 12px 22px; background: #ffca64;
+            border: 4px solid #5c2c16; border-radius: 8px; cursor: pointer;
+            font-weight: bold; font-family: inherit; color: #4a210d; font-size: 16px;
+            box-shadow: inset -4px -4px 0px #c68528, inset 4px 4px 0px #fff3bd, 0 4px 0 #2d1307; 
+            display: none; pointer-events: auto; transition: all 0.15s;
+        }
+        #btn-return:hover { background: #ffe094; transform: translateY(-2px); }
+
+        #radar-container {
+            position: absolute; left: 20px; bottom: 20px; width: 140px; height: 140px;
+            border-radius: 50%; border: 6px solid #5c2c16;
+            background: #0f2c28; overflow: hidden;
+            box-shadow: 0 6px 0 #2d1307, inset 0 0 15px rgba(0,0,0,0.8);
+            display: none; pointer-events: none;
+        }
+
+        #book-btn {
+            position: absolute; bottom: 20px; right: 20px;
+            width: 70px; height: 70px; background: #853e1b; border-radius: 10px;
+            border: 4px solid #3d1908; cursor: pointer; pointer-events: auto;
+            display: flex; align-items: center; justify-content: center;
+            color: #ffe6aa; font-size: 16px; font-weight: bold; text-align: center;
+            box-shadow: inset -4px -4px 0px #50220c, inset 4px 4px 0px #ba6438, 0 5px 0 #2d1307; transition: transform 0.1s;
+        }
+        #book-btn:active { transform: translate(0, 3px); box-shadow: inset -2px -2px 0px #50220c, 0 2px 0 #2d1307; }
+        #book-btn::before { content: "도감"; }
+        .badge {
+            position: absolute; top: -8px; right: -8px;
+            background: #e74c3c; color: white; border-radius: 50%; width: 24px; height: 24px;
+            font-size: 15px; font-weight: bold; line-height: 24px; text-align: center;
+            border: 2px solid #5c2c16; display: none; animation: pop 0.3s ease-out;
+        }
+        @keyframes pop { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+
+        /* Modals */
+        .modal-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 8, 5, 0.7); display: none; align-items: center; justify-content: center;
+            pointer-events: auto; z-index: 100;
+        }
+
+        .modal-content {
+            background: #ffdfa9; border-radius: 8px; padding: 24px; position: relative;
+            border: 6px solid #5c2c16;
+            box-shadow: inset -6px -6px 0px #d48e42, inset 6px 6px 0px #fff1d0, 0 10px 30px rgba(0,0,0,0.7);
+            color: #4a210d;
+        }
+
+        .close-btn {
+            position: absolute; top: 12px; right: 16px; font-size: 26px;
+            cursor: pointer; color: #5c2c16; transition: color 0.2s; font-weight: bold;
+        }
+        .close-btn:hover { color: #d32f2f; }
+
+        /* Store Specific */
+        #store-modal .modal-content { width: 420px; }
+        .store-item {
+            border: 4px solid #5c2c16; padding: 12px; margin: 12px 0; border-radius: 6px;
+            display: flex; justify-content: space-between; align-items: center;
+            background: #ffeac2; box-shadow: inset -3px -3px 0px #e0b47b, inset 3px 3px 0px #fff8e7;
+        }
+        .store-item button {
+            background: #ffca64; border: 3px solid #5c2c16; padding: 8px 14px; border-radius: 6px;
+            font-weight: bold; cursor: pointer; color: #4a210d;
+            box-shadow: inset -2px -2px 0px #c68528, inset 2px 2px 0px #fff3bd, 0 3px 0 #2d1307;
+        }
+        .store-item button:hover { background: #ffe094; }
+        .store-item button:disabled { background: #bbb; border-color: #666; box-shadow: none; color: #666; cursor: not-allowed; }
+
+        /* Book Specific */
+        #book-modal .modal-content {
+            width: 720px; height: 460px; background: #613117;
+            display: flex; padding: 25px; box-sizing: border-box; gap: 16px;
+            border-radius: 10px; border: 6px solid #361708;
+            box-shadow: inset 10px 0 30px rgba(0,0,0,0.6), 0 20px 40px rgba(0,0,0,0.7);
+        }
+        .book-page {
+            background: #ffeaaf; flex: 1; border-radius: 6px; padding: 18px;
+            box-shadow: inset -4px -4px 0px #d48e42, inset 4px 4px 0px #fff8e1; position: relative;
+            display: flex; flex-direction: column; align-items: center; border: 3px solid #5c2c16;
+        }
+        .page-nav {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            background: #ffca64; border: 3px solid #5c2c16;
+            padding: 16px 8px; cursor: pointer; font-weight: bold; color: #4a210d;
+            writing-mode: vertical-rl; text-orientation: upright;
+            transition: background 0.2s; box-shadow: 0 3px 0 #2d1307;
+        }
+        .page-nav:hover { background: #ffe094; }
+        #prev-page { left: -34px; border-radius: 8px 0 0 8px; border-right: none; }
+        #next-page { right: -34px; border-radius: 0 8px 8px 0; border-left: none; }
+        
+        .species-img-container {
+            width: 140px; height: 140px; border: 3px dashed #8b5a2b; margin-bottom: 12px;
+            display: flex; align-items: center; justify-content: center; background: #fdf3d8; border-radius: 6px;
+        }
+        .species-canvas { width: 100%; height: 100%; image-rendering: pixelated; }
+        .species-info { text-align: center; font-size: 13px; line-height: 1.5; color: #3e1b09; }
+        .species-title { font-size: 18px; font-weight: bold; margin-bottom: 4px; color: #5c2c16; }
+        .species-science { font-style: italic; color: #7f4b23; margin-bottom: 8px; font-size: 12px; }
+        
+        .floating-text {
+            position: absolute; pointer-events: none;
+            font-weight: bold; font-size: 20px; animation: floatUp 1s ease-out forwards;
+            text-shadow: 2px 2px 0px #000; z-index: 500;
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-40px) scale(1.1); opacity: 0; }
+        }
+
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(180deg, #1f4257 0%, #0d222e 100%); 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            z-index: 200; pointer-events: auto;
+        }
+        .btn-group { display: flex; gap: 20px; margin-top: 25px; }
+        .action-btn {
+            padding: 14px 36px; font-size: 20px; font-family: inherit; font-weight: bold;
+            background: #ffca64; color: #4a210d; border: 4px solid #5c2c16; border-radius: 8px;
+            cursor: pointer; box-shadow: inset -4px -4px 0px #c68528, inset 4px 4px 0px #fff3bd, 0 6px 0 #2d1307;
+            transition: transform 0.1s;
+        }
+        .action-btn:hover { background: #ffe094; transform: translateY(-2px); }
+        #help-btn { background: #9bd272; box-shadow: inset -4px -4px 0px #609638, inset 4px 4px 0px #dcf3be, 0 6px 0 #2d1307; }
+
+    </style>
+<script src="eco-feedback.js"></script>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div id="start-screen">
+            <h1 style="font-size:44px; color:#ffeaa7; text-shadow: 4px 4px 0px #5c2c16, -2px -2px 0px #d48e42; margin-bottom: 10px; border: 6px solid #5c2c16; padding: 20px 30px; background: #ffdfa9; box-shadow: inset -4px -4px 0px #d48e42, 0 8px 0 #000; border-radius: 12px; color: #4a210d;">블루 발라스트: 푸른 바다의 파수꾼</h1>
+            <p style="font-size: 18px; color: #ffe6aa; margin-bottom: 30px; text-align: center; text-shadow: 2px 2px 0px #000; font-weight: bold;">해양 잠수부가 되어 선박 평형수 속 외래종을 정화하세요!<br>WASD/방향키로 이동, 선박을 클릭하여 평형수 탱크 정화를 시작하세요.</p>
+            <div class="btn-group">
+                <button id="start-btn" class="action-btn">게임 시작 (Start)</button>
+                <button id="help-btn" class="action-btn" onclick="alert('1. 항구에 정박된 배를 직접 클릭하거나 상점에서 새 선박 계약을 하세요.\n2. 장비 준비실에서 방수 장화, 장갑, 잠수 헬멧을 착용하세요.\n3. 평형수 탱크에서 레이더를 활용해 알맞은 도구[1~4]로 외래종을 정화하세요!\n\n*토착종 가물치는 공격하지 말고 생태복원제[4]로 돌려보내야 합니다.')">조작 안내</button>
+            </div>
+        </div>
+
+        <div id="money-display" class="hud-panel">💰 $ 0.00</div>
+        
+        <div id="status-board" class="hud-panel">
+            <div class="status-alien" id="status-remain">👾 남은 외래종: 00 / 00</div>
+            <div class="status-purified" id="status-done">✅ 정화 완료: 0마리</div>
+        </div>
+
+        <div id="completion-popup">
+            <h2>🎉 평형수 탱크 정화 완료!</h2>
+            <p id="completion-bonus">보너스 수당 지급: +$10.00</p>
+        </div>
+        
+        <button id="btn-return">↵ 항구로 나가기</button>
+
+        <div id="radar-container">
+            <canvas id="radarCanvas" width="150" height="150"></canvas>
+        </div>
+
+        <div id="tool-display" class="hud-panel">
+            <div class="tool-slot active" data-tool="1"><div class="tool-num">[1]</div>UV 자외선</div>
+            <div class="tool-slot" data-tool="2"><div class="tool-num">[2]</div>전기분해</div>
+            <div class="tool-slot" data-tool="3"><div class="tool-num">[3]</div>포집 망</div>
+            <div class="tool-slot" data-tool="4"><div class="tool-num">[4]</div>생태복원제</div>
+        </div>
+
+        <div id="book-btn">
+            <div id="book-badge" class="badge">!</div>
+        </div>
+    </div>
+
+    <!-- Store Modal -->
+    <div id="store-modal" class="modal-overlay">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal('store-modal')">&times;</span>
+            <h2 style="color: #5c3a21; border-bottom: 4px dashed #8a5a2a; padding-bottom: 10px; margin-top: 0;">해양 기지 상점 (STORE)</h2>
+            <p style="font-weight: bold;">더 대형 선박의 평형수 정화 계약을 수주하세요!</p>
+            <div class="store-item">
+                <div>
+                    <strong>소형 어선 계약</strong><br>
+                    <span style="font-size:12px; color:#666;">기본 제공 난이도</span>
+                </div>
+                <button onclick="buyShip(0, 0)">소유 중</button>
+            </div>
+            <div class="store-item">
+                <div>
+                    <strong>중형 화물선 계약</strong><br>
+                    <span style="font-size:12px; color:#666;">필요: $15.00</span>
+                </div>
+                <button id="btn-ship-1" onclick="buyShip(1, 15)">$15.00</button>
+            </div>
+            <div class="store-item">
+                <div>
+                    <strong>대형 크루즈선 계약</strong><br>
+                    <span style="font-size:12px; color:#666;">필요: $50.00</span>
+                </div>
+                <button id="btn-ship-2" onclick="buyShip(2, 50)">$50.00</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Book Modal -->
+    <div id="book-modal" class="modal-overlay">
+        <div class="modal-content">
+            <span class="close-btn" style="color: white; right: 10px; top: 10px; z-index: 10;" onclick="closeModal('book-modal')">&times;</span>
+            
+            <div class="book-page">
+                <div class="species-img-container">
+                    <canvas id="canvas-left" class="species-canvas"></canvas>
+                </div>
+                <div class="species-info" id="info-left">
+                    <div class="species-title">???</div>
+                    <div class="species-science">???</div>
+                    <p>미발견 생물</p>
+                </div>
+                <div id="prev-page" class="page-nav" onclick="changePage(-2)">◀ 이전</div>
+            </div>
+
+            <div class="book-page">
+                <div class="species-img-container">
+                    <canvas id="canvas-right" class="species-canvas"></canvas>
+                </div>
+                <div class="species-info" id="info-right">
+                    <div class="species-title">???</div>
+                    <div class="species-science">???</div>
+                    <p>미발견 생물</p>
+                </div>
+                <div id="next-page" class="page-nav" onclick="changePage(2)">다음 ▶</div>
+            </div>
+        </div>
+    </div>
+
+<script>
+/**
+ * Core Game Engine & State
+ */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let cw, ch;
+let radarAngle = 0;
+
+let currentState = 'PIER'; 
+let money = 0;
+let currentShipLevel = 0;
+let unlockedShips = { 0: true, 1: false, 2: false };
+let keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false };
+let mouse = { x: 0, y: 0, click: false, clickX: 0, clickY: 0 };
+let activeTool = 1;
+
+let actx = null;
+let camera = { x: 0, y: 0 };
+
+let particles = [];
+let tankEntities = [];
+let discoveredSpecies = new Set();
+let bookCurrentPage = 0;
+
+let totalAliensCount = 0;
+let aliensToPurify = 0;
+let aliensPurified = 0;
+let isLevelCompleted = false;
+
+const prepItems = [
+    { id: 'boots', name: '다이빙 부츠', color: '#ffb347', x: 0, y: 0, w: 40, h: 40, picked: false },
+    { id: 'gloves', name: '방수 장갑', color: '#f4a460', x: 0, y: 0, w: 30, h: 30, picked: false },
+    { id: 'helmet', name: '잠수 헬멧', color: '#b5a642', x: 0, y: 0, w: 40, h: 45, picked: false }
+];
+
+function resize() {
+    cw = canvas.width = window.innerWidth;
+    ch = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+function initAudio() {
+    if (!actx) {
+        actx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (actx.state === 'suspended') {
+        actx.resume();
+    }
+}
+
+function playTone(freq, type = 'sine', dur = 0.1, vol = 0.1, slide = false) {
+    if (!actx) return;
+    let osc = actx.createOscillator();
+    let gain = actx.createGain();
+    
+    if (type === 'bandpass' || type === 'wave') osc.type = 'sine';
+    else osc.type = type;
+    
+    osc.connect(gain);
+    gain.connect(actx.destination);
+    
+    osc.frequency.setValueAtTime(freq, actx.currentTime);
+    if (slide) osc.frequency.exponentialRampToValueAtTime(freq / 2, actx.currentTime + dur);
+    
+    gain.gain.setValueAtTime(vol, actx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, actx.currentTime + dur);
+    
+    osc.start(actx.currentTime);
+    osc.stop(actx.currentTime + dur);
+}
+
+const speciesData = [
+    { 
+        id: 1, name: '유령멍게', science: 'Ciona intestinalis', tool: 1, toolName: '[1] UV 자외선', 
+        desc: '투명하고 반짝이는 원통형 몸체 내부에 노란색/주황색 내장이 비치는 부착 생물.',
+        draw: (ctx, x, y, size, isDiscovered) => {
+            ctx.save(); ctx.translate(x, y);
+            if (!isDiscovered) { ctx.filter = 'brightness(0)'; ctx.globalAlpha = 0.5; }
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.beginPath(); ctx.ellipse(0, 0, size*0.4, size*0.8, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = 'orange'; ctx.beginPath(); ctx.ellipse(0, size*0.2, size*0.15, size*0.4, 0, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+            ctx.restore();
+        }
+    },
+    {
+        id: 2, name: '지중해담치', science: 'Mytilus galloprovincialis', tool: 3, toolName: '[3] 포집 망',
+        desc: '매끈하고 짙은 딥 바이올렛/검은색 껍데기를 가진 대형 족사 부착 홍합.',
+        draw: (ctx, x, y, size, isDiscovered) => {
+            ctx.save(); ctx.translate(x, y);
+            if (!isDiscovered) { ctx.filter = 'brightness(0)'; ctx.globalAlpha = 0.5; }
+            ctx.fillStyle = '#2a0033'; 
+            ctx.beginPath();
+            ctx.moveTo(-size*0.5, size*0.2); ctx.quadraticCurveTo(0, -size*0.8, size*0.5, size*0.2); ctx.quadraticCurveTo(0, size*0.5, -size*0.5, size*0.2);
+            ctx.fill(); ctx.strokeStyle = '#111'; ctx.stroke();
+            ctx.restore();
+        }
+    },
+    {
+        id: 3, name: '제브라 조개', science: 'Zebra Mussel', tool: 3, toolName: '[3] 포집 망',
+        desc: '뚜렷한 검은색과 크림색 빗살 줄무늬 패턴이 선명한 삼각형 조개.',
+        draw: (ctx, x, y, size, isDiscovered) => {
+            ctx.save(); ctx.translate(x, y);
+            if (!isDiscovered) { ctx.filter = 'brightness(0)'; ctx.globalAlpha = 0.5; }
+            ctx.fillStyle = '#fffdd0';
+            ctx.beginPath(); ctx.moveTo(0, -size*0.6); ctx.lineTo(size*0.6, size*0.5); ctx.lineTo(-size*0.6, size*0.5); ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+            for(let i=-size*0.4; i<size*0.5; i+=size*0.2) {
+                ctx.beginPath(); ctx.moveTo(-size*0.5, i); ctx.lineTo(size*0.5, i+size*0.1); ctx.stroke();
+            }
+            ctx.restore();
+        }
+    },
+    {
+        id: 4, name: '유빗파파리', science: 'Mnemiopsis leidyi', tool: 2, toolName: '[2] 전기분해 기포',
+        desc: '투명한 오발 형태의 몸체 빗판을 따라 네온 파란색/녹색 빛이 일렁이는 해파리.',
+        draw: (ctx, x, y, size, isDiscovered) => {
+            ctx.save(); ctx.translate(x, y);
+            if (!isDiscovered) { ctx.filter = 'brightness(0)'; ctx.globalAlpha = 0.5; }
+            ctx.fillStyle = 'rgba(200, 255, 255, 0.3)';
+            ctx.beginPath(); ctx.ellipse(0, 0, size*0.6, size*0.8, 0, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = 'rgba(0, 255, 255, 0.8)'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.ellipse(-size*0.2, 0, size*0.1, size*0.7, 0, 0, Math.PI*2); ctx.stroke();
+            ctx.strokeStyle = 'rgba(0, 255, 100, 0.8)';
+            ctx.beginPath(); ctx.ellipse(size*0.2, 0, size*0.1, size*0.7, 0, 0, Math.PI*2); ctx.stroke();
+            ctx.restore();
+        }
+    },
+    {
+        id: 5, name: '중국털게', science: 'Eriocheir sinensis', tool: 3, toolName: '[3] 포집 망',
+        desc: '갈색 등껍질과 집게발에 무성한 털 다발이 묘사된 기해양 외래 게.',
+        draw: (ctx, x, y, size, isDiscovered) => {
+            ctx.save(); ctx.translate(x, y);
+            if (!isDiscovered) { ctx.filter = 'brightness(0)'; ctx.globalAlpha = 0.5; }
+            ctx.fillStyle = '#8b4513';
+            ctx.beginPath(); ctx.ellipse(0, 0, size*0.6, size*0.4, 0, 0, Math.PI*2); ctx.fill(); 
+            ctx.fillStyle = '#5c4033'; 
+            ctx.beginPath(); ctx.arc(-size*0.7, -size*0.3, size*0.3, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(size*0.7, -size*0.3, size*0.3, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#000'; 
+            ctx.beginPath(); ctx.arc(-size*0.2, -size*0.4, size*0.1, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(size*0.2, -size*0.4, size*0.1, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
+        }
+    },
+    {
+        id: 6, name: '가물치', science: 'Northern Snakehead', tool: 4, toolName: '[4] 생태복원제',
+        desc: '국내에서는 생태계를 지키는 토착 어종이지만, 북미/해외에서는 생태계를 교란하는 침입 외래종.',
+        draw: (ctx, x, y, size, isDiscovered) => {
+            ctx.save(); ctx.translate(x, y);
+            if (!isDiscovered) { ctx.filter = 'brightness(0)'; ctx.globalAlpha = 0.5; }
+            ctx.fillStyle = '#4a5d23';
+            ctx.beginPath(); ctx.ellipse(0, 0, size*0.8, size*0.3, 0, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#2e3b16';
+            for(let i=-size*0.5; i<size*0.5; i+=size*0.3) {
+                ctx.beginPath(); ctx.arc(i, 0, size*0.15, 0, Math.PI); ctx.fill();
+            }
+            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(-size*0.6, -size*0.1, size*0.08, 0, Math.PI*2); ctx.fill();
+            ctx.restore();
+        }
+    }
+];
+
+// Player State
+const player = {
+    x: 0, y: 0, width: 40, height: 60, speed: 4,
+    equipped: { boots: false, gloves: false, helmet: false },
+    facingRight: true, walkTimer: 0
+};
+
+const sounds = {
+    step: () => playTone(300, 'bandpass', 0.1, 0.2, true),
+    equip: () => playTone(1200, 'sine', 0.1, 0.5),
+    door: () => playTone(100, 'square', 0.5, 0.5),
+    ding: () => { playTone(800, 'sine', 0.1, 0.5); setTimeout(()=>playTone(1200, 'sine', 0.3, 0.5), 100); },
+    beep: () => playTone(1500, 'sine', 0.05, 0.05),
+    tool1: () => playTone(400, 'sawtooth', 0.2, 0.2),
+    tool2: () => { for(let i=0; i<3; i++) setTimeout(()=>playTone(Math.random()*500+200, 'square', 0.1, 0.2), i*50); },
+    tool3: () => playTone(800, 'wave', 0.3, 0.3, true),
+    tool4: () => { playTone(400, 'sine', 0.3, 0.3); setTimeout(()=>playTone(600, 'sine', 0.4, 0.3), 100); },
+    miss: () => playTone(150, 'sawtooth', 0.3, 0.5),
+    penalty: () => playTone(100, 'sawtooth', 0.5, 0.7),
+    success: () => { playTone(600, 'triangle', 0.1, 0.4); setTimeout(()=>playTone(800, 'triangle', 0.2, 0.4), 100); }
+};
+
+window.addEventListener('keydown', (e) => { keys[e.key] = true; if(e.key>='1' && e.key<='4') switchTool(parseInt(e.key)); });
+window.addEventListener('keyup', (e) => { keys[e.key] = false; });
+window.addEventListener('mousemove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
+window.addEventListener('mousedown', (e) => { 
+    mouse.click = true; mouse.clickX = e.clientX; mouse.clickY = e.clientY; 
+    initAudio();
+    handleInteractions();
+});
+window.addEventListener('mouseup', (e) => { mouse.click = false; });
+
+document.getElementById('start-btn').addEventListener('click', () => {
+    document.getElementById('start-screen').style.display = 'none';
+    initAudio();
+    changeState('PIER');
+});
+
+document.getElementById('btn-return').addEventListener('click', () => {
+    sounds.step();
+    changeState('PIER');
+});
+
+function switchTool(num) {
+    if(currentState !== 'TANK') return;
+    activeTool = num;
+    document.querySelectorAll('.tool-slot').forEach(el => {
+        el.classList.remove('active');
+        if(parseInt(el.dataset.tool) === num) el.classList.add('active');
+    });
+}
+
+document.querySelectorAll('.tool-slot').forEach(el => {
+    el.addEventListener('click', () => { switchTool(parseInt(el.dataset.tool)); });
+});
+
+function updateMoney(amount) {
+    money += amount;
+    document.getElementById('money-display').innerText = `$ ${money.toFixed(2)}`;
+    if(amount > 0) showFloatingText(`+$${amount.toFixed(2)}`, player.x, player.y - 50, '#4CAF50');
+    else if(amount < 0) showFloatingText(`-$${Math.abs(amount).toFixed(2)}`, player.x, player.y - 50, 'red');
+    
+    document.getElementById('btn-ship-1').disabled = money < 15;
+    document.getElementById('btn-ship-2').disabled = money < 50;
+}
+
+function changeState(newState) {
+    currentState = newState;
+    if(newState === 'PIER') {
+        player.x = cw/2 - 100; player.y = ch/2 + 50;
+        document.getElementById('tool-display').style.display = 'none';
+        document.getElementById('radar-container').style.display = 'none';
+        document.getElementById('btn-return').style.display = 'none';
+        document.getElementById('status-board').style.display = 'none';
+        camera = {x:0, y:0};
+    } else if(newState === 'PREP') {
+        player.x = cw/2; player.y = ch - 100;
+        document.getElementById('tool-display').style.display = 'none';
+        document.getElementById('radar-container').style.display = 'none';
+        document.getElementById('btn-return').style.display = 'none';
+        document.getElementById('status-board').style.display = 'none';
+        prepItems.forEach(item => item.picked = false);
+        prepItems[0].x = cw/2 - 100; prepItems[0].y = ch/2;
+        prepItems[1].x = cw/2;       prepItems[1].y = ch/2;
+        prepItems[2].x = cw/2 + 100; prepItems[2].y = ch/2;
+        player.equipped = { boots: false, gloves: false, helmet: false };
+    } else if(newState === 'TANK') {
+        player.x = cw/2; player.y = ch/2;
+        document.getElementById('tool-display').style.display = 'flex';
+        document.getElementById('radar-container').style.display = 'block';
+        document.getElementById('btn-return').style.display = 'block';
+        document.getElementById('status-board').style.display = 'flex';
+        isLevelCompleted = false;
+        spawnTankEntities();
+    }
+}
+
+function handleInteractions() {
+    if(document.querySelector('.modal-overlay[style*="display: flex"]')) return;
+
+    if(currentState === 'PIER') {
+        let storeRect = { x: cw/2 - 160, y: ch/2 - 190, w: 180, h: 115 };
+        if(mouse.clickX > storeRect.x && mouse.clickX < storeRect.x + storeRect.w &&
+           mouse.clickY > storeRect.y && mouse.clickY < storeRect.y + storeRect.h) {
+            let dist = Math.hypot(player.x - (storeRect.x+storeRect.w/2), player.y - (storeRect.y+storeRect.h));
+            if(dist < 180) openModal('store-modal');
+        }
+        
+        let ships = [
+            { lvl: 0, x: cw/2 - 360, y: ch/2 - 100, w: 130, h: 80 },
+            { lvl: 1, x: cw/2 + 100, y: ch/2 - 120, w: 170, h: 100 },
+            { lvl: 2, x: cw/2 + 360, y: ch/2 - 140, w: 230, h: 120 }
+        ];
+
+        for(let s of ships) {
+            if(mouse.clickX > s.x && mouse.clickX < s.x + s.w &&
+               mouse.clickY > s.y - 40 && mouse.clickY < s.y + s.h) {
+                let dist = Math.hypot(player.x - (s.x+s.w/2), player.y - (s.y+s.h));
+                if(dist < 220) {
+                    if(unlockedShips[s.lvl]) {
+                        currentShipLevel = s.lvl;
+                        sounds.door();
+                        changeState('PREP');
+                    } else {
+                        showFloatingText("상점에서 선박 정화 계약이 필요합니다!", s.x + s.w/2, s.y - 20, 'red');
+                        sounds.miss();
+                    }
+                    return;
+                }
+            }
+        }
+    } else if (currentState === 'PREP') {
+        prepItems.forEach(item => {
+            if(!item.picked && Math.hypot(mouse.clickX - item.x, mouse.clickY - item.y) < 50) {
+                let distToPlayer = Math.hypot(player.x - item.x, player.y - item.y);
+                if(distToPlayer < 150) {
+                    item.picked = true;
+                    player.equipped[item.id] = true;
+                    sounds.equip();
+                    showFloatingText("장착 완료!", item.x, item.y, '#9bd272');
+                }
+            }
+        });
+
+        let doorRect = { x: cw/2 - 50, y: 50, w: 100, h: 120 };
+        if(mouse.clickX > doorRect.x && mouse.clickX < doorRect.x + doorRect.w &&
+           mouse.clickY > doorRect.y && mouse.clickY < doorRect.y + doorRect.h) {
+            let dist = Math.hypot(player.x - cw/2, player.y - doorRect.y - doorRect.h);
+            if(dist < 150) {
+                if(player.equipped.boots && player.equipped.gloves && player.equipped.helmet) {
+                    sounds.door();
+                    changeState('TANK');
+                } else {
+                    showFloatingText("모든 장비를 클릭하여 착용하세요!", cw/2, doorRect.y + doorRect.h + 20, 'red');
+                    sounds.miss();
+                }
+            }
+        }
+    } else if (currentState === 'TANK') {
+        sounds['tool'+activeTool]();
+        createToolEffect(mouse.clickX, mouse.clickY, activeTool);
+        
+        for(let i=tankEntities.length-1; i>=0; i--) {
+            let e = tankEntities[i];
+            let screenX = e.x - camera.x;
+            let screenY = e.y - camera.y;
+            
+            if(Math.hypot(mouse.clickX - screenX, mouse.clickY - screenY) < e.size) {
+                if(!discoveredSpecies.has(e.id)) {
+                    discoveredSpecies.add(e.id);
+                    document.getElementById('book-badge').style.display = 'block';
+                    sounds.ding();
+                }
+
+                if(e.id === 6) {
+                    if(activeTool === 4) {
+                        updateMoney(3.00);
+                        sounds.success();
+                        showFloatingText("토착종 보호 성공!", screenX, screenY, '#4CAF50');
+                        tankEntities.splice(i, 1);
+                    } else {
+                        updateMoney(-3.00);
+ EcoFX.notify("bad","토착종에 부적합한 도구 → 벌금. 보호 도구 4번을 선택하세요.");
+                        sounds.penalty();
+                        showFloatingText("벌금! 토착종입니다!", screenX, screenY, 'red');
+                    }
+                } else {
+                    if(activeTool === speciesData.find(s=>s.id===e.id).tool) {
+                        updateMoney(3.00);
+                        sounds.success();
+                        createParticles(screenX, screenY, 'green');
+                        tankEntities.splice(i, 1);
+                        aliensToPurify--;
+                        aliensPurified++;
+ EcoFX.notify("good","대상에 맞는 도구 사용 → 남은 외래종 감소. 토착종은 보호 도구를 사용하세요.");
+                        updateStatusBoard();
+                    } else {
+                        sounds.miss();
+                        showFloatingText("MISS! 올바른 도구를 선택하세요", screenX, screenY, 'orange');
+                    }
+                }
+                break;
+            }
+        }
+        
+        if(aliensToPurify <= 0 && !isLevelCompleted) {
+            isLevelCompleted = true;
+ EcoFX.notify("win","이번 선박의 처리 목표 달성. 부두에서 다음 계약을 준비하세요.");
+            setTimeout(() => {
+                let bonus = 10 + (currentShipLevel * 10);
+                let popup = document.getElementById('completion-popup');
+                document.getElementById('completion-bonus').innerText = `보너스 수당 지급: +$${bonus.toFixed(2)}`;
+                popup.style.transform = 'translate(-50%, -50%) scale(1)';
+                
+                updateMoney(bonus);
+                sounds.success();
+                setTimeout(() => sounds.ding(), 200);
+                
+                setTimeout(() => {
+                    popup.style.transform = 'translate(-50%, -50%) scale(0)';
+                    changeState('PIER');
+                }, 3000);
+            }, 500);
+        }
+    }
+}
+
+function spawnTankEntities() {
+    tankEntities = [];
+    aliensToPurify = 0;
+    aliensPurified = 0;
+    let count = 5 + currentShipLevel * 5;
+    
+    for(let i=0; i<count; i++) {
+        let typeIndex = Math.floor(Math.random() * speciesData.length);
+        let sId = speciesData[typeIndex].id;
+        
+        if (sId !== 6) aliensToPurify++;
+        
+        tankEntities.push({
+            id: sId,
+            x: Math.random() * (cw*1.5) - cw*0.25,
+            y: Math.random() * (ch*1.5) - ch*0.25,
+            size: 40 + Math.random()*20,
+            vx: (Math.random()-0.5) * 2,
+            vy: (Math.random()-0.5) * 2
+        });
+    }
+    
+    if(aliensToPurify === 0) {
+        aliensToPurify = 1;
+        tankEntities[0].id = 1;
+    }
+    
+    totalAliensCount = aliensToPurify;
+    updateStatusBoard();
+}
+
+function updateStatusBoard() {
+    let remStr = aliensToPurify < 10 ? `0${aliensToPurify}` : `${aliensToPurify}`;
+    let totStr = totalAliensCount < 10 ? `0${totalAliensCount}` : `${totalAliensCount}`;
+    
+    document.getElementById('status-remain').innerText = `👾 남은 외래종: ${remStr} / ${totStr}`;
+    document.getElementById('status-done').innerText = `✅ 정화 완료: ${aliensPurified}마리`;
+}
+
+function showFloatingText(text, x, y, color) {
+    let el = document.createElement('div');
+    el.className = 'floating-text';
+    el.innerText = text;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.color = color;
+    document.getElementById('ui-layer').appendChild(el);
+    setTimeout(() => el.remove(), 1000);
+}
+
+function createParticles(x, y, color) {
+    for(let i=0; i<10; i++) {
+        particles.push({
+            x: x, y: y,
+            vx: (Math.random()-0.5)*5, vy: (Math.random()-0.5)*5,
+            life: 1, color: color
+        });
+    }
+}
+
+function createToolEffect(x, y, toolNum) {
+    let color = ['rgba(200,100,255,0.5)', 'rgba(100,255,255,0.5)', 'rgba(255,255,255,0.5)', 'rgba(100,255,100,0.5)'][toolNum-1];
+    particles.push({ x: x, y: y, radius: 10, maxRadius: 50, life: 1, type: 'circle', color: color });
+}
+
+function update() {
+    let dx = 0, dy = 0;
+    if(keys.w || keys.ArrowUp) dy = -1;
+    if(keys.s || keys.ArrowDown) dy = 1;
+    if(keys.a || keys.ArrowLeft) dx = -1;
+    if(keys.d || keys.ArrowRight) dx = 1;
+
+    if(dx !== 0 || dy !== 0) {
+        let len = Math.hypot(dx, dy);
+        dx /= len; dy /= len;
+        
+        if(currentState === 'PIER') {
+            let nextX = player.x + dx * player.speed;
+            let nextY = player.y + dy * player.speed;
+            let onPier = (nextY > ch/2 - 10) || 
+                         (nextX > cw/2 - 160 && nextX < cw/2 + 60 && nextY > ch/2 - 60);
+            if(onPier) {
+                player.x = nextX; player.y = nextY;
+            }
+        } else if (currentState === 'PREP') {
+            player.x = Math.max(20, Math.min(cw-20, player.x + dx * player.speed));
+            player.y = Math.max(20, Math.min(ch-20, player.y + dy * player.speed));
+        } else if (currentState === 'TANK') {
+            player.x += dx * player.speed;
+            player.y += dy * player.speed;
+            camera.x = player.x - cw/2;
+            camera.y = player.y - ch/2;
+        }
+
+        if(dx > 0) player.facingRight = true;
+        else if (dx < 0) player.facingRight = false;
+        
+        player.walkTimer++;
+        if(player.walkTimer % 15 === 0 && currentState !== 'TANK') sounds.step();
+    } else {
+        player.walkTimer = 0;
+    }
+
+    for(let i=particles.length-1; i>=0; i--) {
+        let p = particles[i];
+        if(p.type === 'circle') {
+            p.radius += 2; p.life -= 0.05;
+        } else {
+            p.x += p.vx; p.y += p.vy; p.life -= 0.05;
+        }
+        if(p.life <= 0) particles.splice(i, 1);
+    }
+
+    if(currentState === 'TANK') {
+        tankEntities.forEach(e => {
+            e.x += e.vx; e.y += e.vy;
+            if(e.x < -cw*0.5) e.vx += 0.1; if(e.x > cw*1.5) e.vx -= 0.1;
+            if(e.y < -ch*0.5) e.vy += 0.1; if(e.y > ch*1.5) e.vy -= 0.1;
+            e.vx += (Math.random()-0.5)*0.1; e.vy += (Math.random()-0.5)*0.1;
+            e.vx *= 0.99; e.vy *= 0.99;
+        });
+    }
+}
+
+/**
+ * Draw Routines - Stardew Valley Style Diver Character
+ */
+function drawPlayer(x, y) {
+    ctx.save();
+    ctx.translate(x, y);
+    if(!player.facingRight) ctx.scale(-1, 1);
+
+    let isMoving = keys.w || keys.a || keys.s || keys.d || keys.ArrowUp || keys.ArrowDown || keys.ArrowLeft || keys.ArrowRight;
+    let bob = (isMoving && (player.walkTimer % 16 > 8)) ? -3 : 0;
+    ctx.translate(0, bob);
+
+    // 그림자
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+    ctx.beginPath(); ctx.ellipse(0, 24, 15, 6, 0, 0, Math.PI*2); ctx.fill();
+
+    if(currentState === 'TANK' || (currentState==='PREP' && player.equipped.helmet && player.equipped.gloves && player.equipped.boots)) {
+        // [수중 중잠수복 모드]
+        // 오리발 / 신발
+        ctx.fillStyle = '#ff7b00'; ctx.fillRect(-16, 18, 12, 8); ctx.fillRect(4, 18, 12, 8);
+        // 잠수복 몸통 (황동-네이비 조합 스타듀풍 다이빙 슈트)
+        ctx.fillStyle = '#1c3144'; ctx.fillRect(-12, -18, 24, 36);
+        ctx.fillStyle = '#0f1c28'; ctx.fillRect(-12, -18, 8, 36); 
+        // 산소 호스 & 정면 가슴 벨트
+        ctx.fillStyle = '#b5838d'; ctx.fillRect(-8, -12, 16, 4); ctx.fillRect(-8, 4, 16, 4);
+        ctx.fillStyle = '#e0a96d'; ctx.fillRect(-3, -12, 6, 20); // 금속 고정장치
+
+        // 잠수 고글/클래식 다이빙 헬멧
+        ctx.fillStyle = '#d4af37'; ctx.fillRect(-14, -42, 28, 26); // 황동 메인
+        ctx.fillStyle = '#aa820a'; ctx.fillRect(-14, -42, 7, 26);  // 음영
+        ctx.fillStyle = '#00ffff'; ctx.fillRect(-2, -36, 14, 14);  // 청록색 고글 유리
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(2, -32, 4, 4);     // 유리 반사광
+    } else {
+        // [육상/항구 전문 잠수부 모드 - Stardew Diver/Marine Officer]
+        // 1. 다이빙 부츠 (검은색 굵은 고무 부츠)
+        ctx.fillStyle = '#1a1a1a'; 
+        ctx.fillRect(-11, 16, 9, 10); ctx.fillRect(2, 16, 9, 10);
+        ctx.fillStyle = '#333333'; ctx.fillRect(-11, 16, 4, 10); ctx.fillRect(2, 16, 4, 10);
+
+        // 2. 잠수 슈트 하의 (네이비 다이빙 팬츠 & 무릎 패드)
+        ctx.fillStyle = '#223843'; ctx.fillRect(-12, 2, 24, 16);
+        ctx.fillStyle = '#14232a'; ctx.fillRect(-12, 2, 8, 16); // 도트 음영
+        ctx.fillStyle = '#e85d04'; ctx.fillRect(-10, 8, 5, 6); ctx.fillRect(5, 8, 5, 6); // 무릎 주황 포인트
+
+        // 3. 네오프렌 잠수 상의 (지퍼가 달린 잠수복 상의)
+        ctx.fillStyle = '#2b2d42'; ctx.fillRect(-13, -16, 26, 18);
+        ctx.fillStyle = '#1a1b29'; ctx.fillRect(-13, -16, 8, 18);
+        ctx.fillStyle = '#d8f3dc'; ctx.fillRect(-1, -16, 2, 18); // 지퍼 라인
+
+        // 4. 어깨 및 등 산소통 스트랩 (오렌지 세이프티 베스트/스트랩)
+        ctx.fillStyle = '#f77f00'; 
+        ctx.fillRect(-10, -16, 4, 18); ctx.fillRect(6, -16, 4, 18);
+        ctx.fillRect(-10, -2, 20, 4);
+
+        // 5. 등뒤 산소통 (잠수부 필수 장비)
+        ctx.fillStyle = '#f15bb5'; ctx.fillRect(-18, -14, 5, 20); ctx.fillRect(13, -14, 5, 20); // 노란/핑크 듀얼 탠크
+        ctx.fillStyle = '#fee440'; ctx.fillRect(-17, -12, 3, 16); ctx.fillRect(14, -12, 3, 16);
+
+        // 6. 피부 & 잠수 고글을 머리에 올린 형태
+        ctx.fillStyle = '#f4a261'; ctx.fillRect(-11, -32, 22, 18); // 피부
+        ctx.fillStyle = '#e76f51'; ctx.fillRect(-11, -32, 6, 18);  // 얼룩 음영
+
+        // 눈
+        ctx.fillStyle = '#1d3557'; ctx.fillRect(2, -24, 4, 6); ctx.fillRect(8, -24, 4, 6);
+
+        // 머리 위 다이빙 고글 (Diving Mask on Head)
+        ctx.fillStyle = '#2b2d42'; ctx.fillRect(-13, -40, 26, 10); // 고글 프레임
+        ctx.fillStyle = '#4cc9f0'; ctx.fillRect(-8, -38, 8, 6); ctx.fillRect(2, -38, 8, 6); // 고글 유리
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(-6, -37, 3, 3); ctx.fillRect(4, -37, 3, 3);
+        ctx.fillStyle = '#f77f00'; ctx.fillRect(-15, -37, 30, 3); // 스트랩
+    }
+    ctx.restore();
+}
+
+function drawScenePier() {
+    let t = Math.floor(Date.now() / 350);
+    
+    // 스타듀 밸리 해변 바다 물결
+    ctx.fillStyle = '#1b4f72'; ctx.fillRect(0, 0, cw, ch);
+    ctx.fillStyle = '#21618c';
+    for(let y=0; y<ch/2; y+=30) {
+        for(let x=0; x<cw; x+=60) {
+            if((x/60 + y/30 + t)%3 === 0) ctx.fillRect(x, y, 40, 8);
+        }
+    }
+
+    // 스타듀 밸리 황토색 흙길 & 나뭇길
+    let pierY = ch/2 - 20;
+    ctx.fillStyle = '#3e2723'; ctx.fillRect(0, pierY - 12, cw, ch - pierY + 12);
+    
+    ctx.fillStyle = '#8d5524'; ctx.fillRect(0, pierY, cw, ch - pierY);
+    ctx.fillRect(cw/2 - 180, ch/2 - 40, 220, 120); 
+
+    ctx.fillStyle = '#734219';
+    for (let x=0; x<cw; x+=32) ctx.fillRect(x, pierY, 3, ch-pierY);
+    
+    ctx.fillStyle = '#4a2f1d';
+    for (let y=pierY+24; y<ch; y+=28) {
+        ctx.fillRect(0, y, cw, 3);
+        for (let x=10; x<cw; x+=32) {
+            ctx.fillRect(x, y-6, 2, 2); ctx.fillRect(x+12, y-6, 2, 2);
+        }
+    }
+
+    // 해양 센터 상점
+    let sx = cw/2 - 160, sy = ch/2 - 190;
+    
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(sx+10, sy+150, 180, 20);
+    ctx.fillStyle = '#a0522d'; ctx.fillRect(sx, sy+40, 180, 115);
+    ctx.fillStyle = '#703010'; ctx.fillRect(sx, sy+40, 24, 115); 
+    
+    ctx.fillStyle = '#2e7d32'; ctx.fillRect(sx-10, sy+10, 200, 35);
+    ctx.fillStyle = '#f5f5f5';
+    for(let i=0; i<200; i+=32) {
+        ctx.fillRect(sx-10+i, sy+10, 16, 35);
+    }
+    
+    ctx.fillStyle = '#4a2f1d'; ctx.fillRect(sx+70, sy+70, 44, 85);
+    ctx.fillStyle = '#2d1b0e'; ctx.fillRect(sx+75, sy+75, 34, 80);
+    ctx.fillStyle = '#ffca64'; ctx.fillRect(sx+98, sy+112, 6, 6);
+
+    ctx.fillStyle = '#2c3e50'; ctx.fillRect(sx+15, sy+65, 38, 45);
+    ctx.fillStyle = '#81d4fa'; ctx.fillRect(sx+18, sy+68, 32, 39);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(sx+22, sy+72, 8, 8);
+    ctx.fillStyle = '#703010'; ctx.fillRect(sx+33, sy+65, 3, 45); ctx.fillRect(sx+15, sy+85, 38, 3);
+
+    ctx.fillStyle = '#2c3e50'; ctx.fillRect(sx+127, sy+65, 38, 45);
+    ctx.fillStyle = '#81d4fa'; ctx.fillRect(sx+130, sy+68, 32, 39);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(sx+134, sy+72, 8, 8);
+    ctx.fillStyle = '#703010'; ctx.fillRect(sx+145, sy+65, 3, 45); ctx.fillRect(sx+127, sy+85, 38, 3);
+
+    ctx.fillStyle = '#ffca64'; ctx.fillRect(sx+30, sy-10, 120, 30);
+    ctx.fillStyle = '#5c2c16'; ctx.lineWidth = 3; ctx.strokeRect(sx+30, sy-10, 120, 30);
+    ctx.fillStyle = '#5c2c16'; ctx.font = 'bold 15px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('해양 기지 상점', sx+90, sy+11);
+
+    // 정박된 선박 3척
+    let ships = [
+        { lvl: 0, name: '소형 어선', x: cw/2 - 360, y: ch/2 - 100, w: 130, h: 80, colors: ['#c0392b', '#962d22'] },
+        { lvl: 1, name: '중형 화물선', x: cw/2 + 100, y: ch/2 - 120, w: 170, h: 100, colors: ['#2980b9', '#1b4f72'] },
+        { lvl: 2, name: '대형 크루즈선', x: cw/2 + 360, y: ch/2 - 140, w: 230, h: 120, colors: ['#f39c12', '#d35400'] }
+    ];
+
+    ships.forEach(s => {
+        ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(s.x, s.y + s.h*0.8, s.w, 15);
+
+        ctx.fillStyle = s.colors[0]; ctx.fillRect(s.x, s.y + s.h*0.3, s.w, s.h*0.5); 
+        ctx.fillStyle = s.colors[1]; ctx.fillRect(s.x, s.y + s.h*0.6, s.w, s.h*0.2); 
+        
+        if (s.lvl === 0) {
+            ctx.fillStyle = '#ffeaaf'; ctx.fillRect(s.x + 25, s.y, 55, s.h*0.3);
+            ctx.fillStyle = '#5c2c16'; ctx.fillRect(s.x + 35, s.y + 8, 16, 12);
+        } else if (s.lvl === 1) {
+            ctx.fillStyle = '#7f8c8d'; ctx.fillRect(s.x + 10, s.y-20, s.w-20, s.h*0.3 + 20); 
+            ctx.fillStyle = '#e74c3c'; ctx.fillRect(s.x + 20, s.y-10, 35, 20); 
+            ctx.fillStyle = '#f1c40f'; ctx.fillRect(s.x + 65, s.y-10, 35, 20);
+        } else if (s.lvl === 2) {
+            ctx.fillStyle = '#fffdf0'; ctx.fillRect(s.x + 10, s.y-40, s.w-20, s.h*0.3 + 40);
+            ctx.fillStyle = '#f39c12'; 
+            for(let j=0; j<6; j++) ctx.fillRect(s.x + 20 + j*32, s.y-25, 16, 14);
+        }
+        
+        // 직관적인 상호작용 안내 말풍선 표시
+        let dist = Math.hypot(player.x - (s.x+s.w/2), player.y - (s.y+s.h));
+        if (dist < 220 && unlockedShips[s.lvl]) {
+            ctx.fillStyle = '#ffeaaf';
+            ctx.fillRect(s.x + s.w/2 - 80, s.y - 35, 160, 26);
+            ctx.strokeStyle = '#5c2c16'; ctx.lineWidth = 2;
+            ctx.strokeRect(s.x + s.w/2 - 80, s.y - 35, 160, 26);
+            ctx.fillStyle = '#4a210d'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign='center';
+            ctx.fillText('🖱️ [클릭] 평형수 정화 작업', s.x + s.w/2, s.y - 18);
+        } else {
+            ctx.fillStyle = '#ffe2a2'; ctx.font = 'bold 16px sans-serif'; ctx.textAlign='center';
+            ctx.fillText(s.name, s.x + s.w/2, s.y + s.h + 24);
+        }
+        
+        if (!unlockedShips[s.lvl]) {
+            ctx.fillStyle = 'rgba(20, 10, 5, 0.65)'; ctx.fillRect(s.x, s.y - 45, s.w, s.h + 75);
+            ctx.fillStyle = '#ff6b6b'; ctx.font = 'bold 14px sans-serif';
+            ctx.fillText('🔒 상점 계약 필요', s.x + s.w/2, s.y + s.h/2);
+        }
+    });
+}
+
+function drawScenePrep() {
+    ctx.fillStyle = '#3e2723'; ctx.fillRect(0, 0, cw, ch); 
+    ctx.fillStyle = '#5c3a21'; 
+    for(let i=0; i<cw; i+=80) ctx.fillRect(i, 0, 8, ch/2);
+
+    ctx.fillStyle = '#d7ccc8'; ctx.fillRect(0, ch/2, cw, ch/2);
+    ctx.fillStyle = '#bcaaa4';
+    for(let i=0; i<cw; i+=40) ctx.fillRect(i, ch/2, 4, ch/2);
+    for(let j=ch/2; j<ch; j+=40) ctx.fillRect(0, j, cw, 4);
+
+    let doorX = cw/2 - 60, doorY = 40;
+    ctx.fillStyle = '#546e7a'; ctx.fillRect(doorX, doorY, 120, 140);
+    ctx.fillStyle = '#37474f'; ctx.fillRect(doorX+10, doorY+10, 100, 120);
+    ctx.fillStyle = '#c62828'; ctx.fillRect(cw/2 - 20, doorY + 60, 40, 40);
+    ctx.fillStyle = '#ff5252'; ctx.fillRect(cw/2 - 12, doorY + 68, 24, 24);
+
+    ctx.fillStyle = '#5d4037'; ctx.fillRect(cw/2 - 160, ch/2 + 20, 320, 80);
+    ctx.fillStyle = '#3e2723'; ctx.fillRect(cw/2 - 160, ch/2 + 100, 320, 20); 
+
+    prepItems.forEach(item => {
+        if(!item.picked) {
+            ctx.fillStyle = item.color;
+            ctx.fillRect(item.x - item.w/2, item.y - item.h/2, item.w, item.h);
+            ctx.fillStyle = 'rgba(0,0,0,0.3)';
+            ctx.fillRect(item.x - item.w/2, item.y, item.w, item.h/2);
+            
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign='center';
+            ctx.fillText(item.name, item.x, item.y + item.h/2 + 20);
+        }
+    });
+
+    if(player.equipped.boots && player.equipped.gloves && player.equipped.helmet) {
+        ctx.fillStyle = '#00FF00'; ctx.font = 'bold 20px sans-serif'; ctx.textAlign='center';
+        ctx.fillText("장비 착용 완료! 상단 탱크 밸브를 클릭해 입수하세요.", cw/2, 30);
+    }
+}
+
+function drawSceneTank() {
+    let grad = ctx.createLinearGradient(0, 0, 0, ch);
+    grad.addColorStop(0, '#004d40'); grad.addColorStop(1, '#001a14');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, cw, ch);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    for(let i=0; i<50; i++) {
+        let px = (Math.sin(Date.now()/2000 + i) * cw + i*137) % cw;
+        let py = (Date.now()/50 + i*100) % ch;
+        ctx.beginPath(); ctx.arc(px, ch-py, 2+Math.random()*3, 0, Math.PI*2); ctx.fill();
+    }
+
+    ctx.save();
+    ctx.translate(-camera.x, -camera.y);
+
+    tankEntities.forEach(e => {
+        let species = speciesData.find(s => s.id === e.id);
+        if(species) species.draw(ctx, e.x, e.y, e.size, true);
+    });
+
+    particles.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        if(p.type === 'circle') {
+            ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+            ctx.globalAlpha = p.life;
+        } else {
+            ctx.arc(p.x, p.y, 3, 0, Math.PI*2);
+        }
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+    });
+
+    ctx.restore();
+}
+
+function drawRadar() {
+    if (currentState !== 'TANK') return;
+    const rctx = document.getElementById('radarCanvas').getContext('2d');
+    rctx.clearRect(0,0,150,150);
+    let cx = 75, cy = 75, r = 75;
+
+    rctx.strokeStyle = 'rgba(100, 255, 255, 0.4)'; rctx.lineWidth = 1;
+    rctx.beginPath(); rctx.arc(cx, cy, r/3, 0, Math.PI*2); rctx.stroke();
+    rctx.beginPath(); rctx.arc(cx, cy, r*2/3, 0, Math.PI*2); rctx.stroke();
+    rctx.beginPath(); rctx.moveTo(0, cy); rctx.lineTo(150, cy); rctx.stroke();
+    rctx.beginPath(); rctx.moveTo(cx, 0); rctx.lineTo(cx, 150); rctx.stroke();
+
+    let playedBeep = false;
+    tankEntities.forEach(e => {
+        let dx = e.x - player.x;
+        let dy = e.y - player.y;
+        let dist = Math.hypot(dx, dy);
+        let angle = Math.atan2(dy, dx);
+        
+        let radarDist = (dist / (cw * 0.6)) * r; 
+        if(radarDist > r - 6) radarDist = r - 6;
+
+        let rx = cx + Math.cos(angle) * radarDist;
+        let ry = cy + Math.sin(angle) * radarDist;
+
+        let angleDiff = Math.abs(radarAngle - angle);
+        if(angleDiff > Math.PI) angleDiff = 2*Math.PI - angleDiff;
+        
+        if (angleDiff < 0.25) {
+            rctx.fillStyle = e.id === 6 ? '#00FF00' : '#FF3333';
+            rctx.beginPath(); rctx.arc(rx, ry, 4, 0, Math.PI*2); rctx.fill();
+            rctx.shadowBlur = 12; rctx.shadowColor = rctx.fillStyle;
+            
+            if (e.id !== 6 && Math.random() < 0.15 && !playedBeep) {
+                sounds.beep();
+                playedBeep = true;
+            }
+        } else {
+            rctx.fillStyle = e.id === 6 ? 'rgba(0, 255, 0, 0.4)' : 'rgba(255, 0, 0, 0.4)';
+            rctx.beginPath(); rctx.arc(rx, ry, 2, 0, Math.PI*2); rctx.fill();
+        }
+        rctx.shadowBlur = 0;
+    });
+
+    rctx.fillStyle = 'rgba(0, 255, 255, 0.35)';
+    rctx.beginPath();
+    rctx.moveTo(cx, cy);
+    rctx.arc(cx, cy, r, radarAngle, radarAngle + 0.35);
+    rctx.lineTo(cx, cy);
+    rctx.fill();
+    
+    radarAngle += 0.04;
+    if(radarAngle > Math.PI*2) radarAngle -= Math.PI*2;
+}
+
+function draw() {
+    ctx.clearRect(0, 0, cw, ch);
+
+    if(currentState === 'PIER') drawScenePier();
+    else if(currentState === 'PREP') drawScenePrep();
+    else if(currentState === 'TANK') drawSceneTank();
+
+    drawPlayer(player.x - (currentState==='TANK'?camera.x:0), player.y - (currentState==='TANK'?camera.y:0));
+
+    if(currentState === 'TANK') drawRadar();
+}
+
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+function openModal(id) {
+    document.getElementById(id).style.display = 'flex';
+    if(id === 'book-modal') {
+        document.getElementById('book-badge').style.display = 'none';
+        renderBookPages();
+    }
+}
+function closeModal(id) {
+    document.getElementById(id).style.display = 'none';
+}
+
+function buyShip(level, cost) {
+    if(money >= cost && !unlockedShips[level]) {
+        updateMoney(-cost);
+        unlockedShips[level] = true;
+        sounds.success();
+        showFloatingText("새로운 선박 계약 완료!", player.x, player.y - 80, '#FFD700');
+        
+        let btn = document.getElementById('btn-ship-' + level);
+        if(btn) { 
+            btn.innerText = "계약 완료"; 
+            btn.disabled = true; 
+            btn.style.background = '#ccc';
+        }
+    } else if(money < cost) {
+        sounds.miss();
+        showFloatingText("자금이 부족합니다!", player.x, player.y - 80, 'red');
+    }
+}
+
+document.getElementById('book-btn').addEventListener('click', () => openModal('book-modal'));
+
+function changePage(dir) {
+    bookCurrentPage += dir;
+    if(bookCurrentPage < 0) bookCurrentPage = 0;
+    if(bookCurrentPage >= speciesData.length) bookCurrentPage = speciesData.length - 2;
+    renderBookPages();
+    sounds.step();
+}
+
+function renderBookPages() {
+    let leftIndex = bookCurrentPage;
+    let rightIndex = bookCurrentPage + 1;
+
+    let btnPrev = document.getElementById('prev-page');
+    let btnNext = document.getElementById('next-page');
+    btnPrev.style.display = leftIndex > 0 ? 'block' : 'none';
+    btnNext.style.display = rightIndex < speciesData.length - 1 ? 'block' : 'none';
+
+    renderPage('left', leftIndex);
+    renderPage('right', rightIndex);
+}
+
+function renderPage(side, index) {
+    let infoDiv = document.getElementById(`info-${side}`);
+    let canvas = document.getElementById(`canvas-${side}`);
+    let ctxBook = canvas.getContext('2d');
+    canvas.width = 150; canvas.height = 150;
+    ctxBook.clearRect(0,0,150,150);
+
+    if(index >= speciesData.length) {
+        infoDiv.innerHTML = "<p>빈 페이지</p>";
+        return;
+    }
+
+    let species = speciesData[index];
+    let isDiscovered = discoveredSpecies.has(species.id);
+
+    species.draw(ctxBook, 75, 75, 40, isDiscovered);
+
+    if(isDiscovered) {
+        infoDiv.innerHTML = `
+            <div class="species-title">${species.name}</div>
+            <div class="species-science">${species.science}</div>
+            <p style="font-size:12px; font-weight:bold; color:#d32f2f;">추천 도구: ${species.toolName}</p>
+            <p style="text-align:left; margin-top:10px;">${species.desc}</p>
+        `;
+    } else {
+        infoDiv.innerHTML = `
+            <div class="species-title">???</div>
+            <div class="species-science">???</div>
+            <p>미발견 생물. 평형수 탱크에서 탐색하세요.</p>
+        `;
+    }
+}
+
+requestAnimationFrame(loop);
+
+</script>
+<script>
+EcoFX.mount({title:"평형수 이동과 생물 보호",goal:"도감 확인 → 대상별 도구 선택 → 외래종 처리·토착종 보호",note:"도구와 보상은 가상 규칙입니다. 실제 평형수 관리는 선박의 승인된 처리 절차를 따릅니다.",read:()=>({label:'남은 대상 '+aliensToPurify+' · 기록',progress:totalAliensCount?(totalAliensCount-aliensToPurify)/totalAliensCount*100:0,detail:'처리 '+aliensPurified+' · 남은 대상 '+aliensToPurify+'. 토착종은 보호 도구 4번으로 안전하게 다루세요.'}),actions:[{label:'처음부터 재시작',run:()=>location.reload()}]});
+</script>
+</body>
+</html>

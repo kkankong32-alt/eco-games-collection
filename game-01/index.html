@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta name="referrer" content="no-referrer">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>우사기 백룸: E-Waste 호러 탈출</title>
+    <link rel="stylesheet" href="vendor/tailwind.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Courier New', monospace;
+            user-select: none;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* CRT Filter Overlay */
+        .crt::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            z-index: 20;
+            background-size: 100% 3px, 3px 100%;
+            pointer-events: none;
+        }
+
+        /* Glitch & Rage Effects */
+        @keyframes glitch-anim {
+            0% { transform: translate(0) }
+            20% { transform: translate(-3px, 3px) }
+            40% { transform: translate(-3px, -3px) }
+            60% { transform: translate(3px, 3px) }
+            80% { transform: translate(3px, -3px) }
+            100% { transform: translate(0) }
+        }
+
+        .glitch-active {
+            animation: glitch-anim 0.15s infinite;
+        }
+
+        /* Crosshair */
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 12px;
+            height: 12px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(0, 255, 102, 0.8);
+        }
+
+        #crosshair::before { top: 5px; left: 0; width: 12px; height: 2px; }
+        #crosshair::after { top: 0; left: 5px; width: 2px; height: 12px; }
+
+        /* Retro HUD Boxes */
+        .hud-box {
+            background: rgba(5, 15, 10, 0.85);
+            border: 2px solid #00ff66;
+            box-shadow: 0 0 10px rgba(0, 255, 102, 0.3);
+            border-radius: 6px;
+        }
+
+        /* Terminal Screen Styling */
+        .terminal-screen {
+            background: #021206;
+            border: 3px solid #00ff66;
+            box-shadow: 0 0 25px rgba(0, 255, 102, 0.5);
+        }
+
+        /* Custom Scrollbar for Terminal text if needed */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #00ff66; }
+    </style>
+
+    <!-- Essential Libraries: Three.js r128 & PointerLockControls -->
+    <script src="vendor/1.js"></script>
+    <script src="vendor/2.js"></script>
+<style>.hidden { display: none !important; }</style>
+<script src="eco-feedback.js"></script>
+</head>
+<body class="crt text-green-400">
+
+    <div id="canvas-container"></div>
+
+    <!-- Crosshair -->
+    <div id="crosshair"></div>
+
+    <!-- HUD Overlay -->
+    <div id="hud" class="absolute inset-0 pointer-events-none p-4 flex flex-col justify-between z-10 hidden">
+        <!-- Top HUD Bar -->
+        <div class="flex justify-between items-start">
+            <div class="hud-box p-3 font-mono text-xs md:text-sm space-y-1">
+                <div>[E-WASTE BACKROOMS CORE]</div>
+                <div>터미널 해제: <span id="hud-terminals" class="text-yellow-400 font-bold">0 / 5</span></div>
+                <div>목숨: <span id="hud-lives" class="text-red-500 font-bold">❤❤❤</span></div>
+            </div>
+
+            <!-- Flashlight & Grace Timer -->
+            <div class="hud-box p-3 font-mono text-xs md:text-sm space-y-1 text-right">
+                <div id="grace-status" class="text-yellow-300 font-bold">우사기 대기 중: <span id="grace-timer">20</span>s</div>
+                <div class="flex items-center gap-2 justify-end">
+                    <span>손전등 [F]:</span>
+                    <div class="w-24 bg-gray-900 border border-green-500 h-3 rounded-full overflow-hidden">
+                        <div id="battery-bar" class="bg-green-500 h-full w-full transition-all"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2D Top-down Mini-Map (Top Right Floating or Bottom Right) -->
+        <div class="absolute bottom-4 right-4 w-44 h-44 hud-box overflow-hidden flex flex-col items-center justify-center p-1">
+            <div class="text-[10px] text-green-400 font-bold mb-0.5 tracking-widest uppercase">E-WASTE SCANNER 2D</div>
+            <canvas id="minimap" width="160" height="160" class="border border-green-800 rounded bg-black/90"></canvas>
+        </div>
+
+        <!-- Hiding Indicator -->
+        <div id="hiding-indicator" class="absolute bottom-20 left-4 bg-emerald-950/90 border border-emerald-400 text-emerald-300 px-4 py-2 rounded-lg font-bold text-sm hidden shadow-lg animate-pulse">
+            🛡️ 은신 상태 (우사기의 시야에서 벗어남)
+        </div>
+    </div>
+
+    <!-- Subtitle / Dynamic Monologue System -->
+    <div id="monologue-container" class="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 max-w-xl w-11/12 pointer-events-none transition-opacity duration-300 opacity-0">
+        <div class="bg-black/90 border-2 border-yellow-500/80 p-4 rounded-xl text-center shadow-2xl backdrop-blur-md">
+            <div class="text-xs text-yellow-500 font-bold tracking-widest mb-1">[주인공 독백]</div>
+            <p id="monologue-text" class="text-white text-sm md:text-base font-medium leading-relaxed">...</p>
+        </div>
+    </div>
+
+    <!-- Interaction Prompt -->
+    <div id="interaction-prompt" class="absolute top-3/5 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/90 border border-yellow-400 text-yellow-300 px-5 py-2 rounded-lg text-sm font-bold z-20 hidden shadow-xl animate-bounce">
+        [E] 터미널 접속
+    </div>
+
+    <!-- OPENING PROLOGUE & START SCREEN -->
+    <div id="start-screen" class="absolute inset-0 bg-black/95 flex flex-col justify-center items-center p-6 z-50 pointer-events-auto">
+        <div class="max-w-xl w-full border-2 border-green-500 bg-neutral-950 p-6 md:p-8 rounded-2xl shadow-2xl text-center font-mono">
+            <h1 class="text-2xl md:text-4xl font-extrabold text-green-400 tracking-wider mb-1">우사기 백룸</h1>
+            <p class="text-red-500 font-bold text-xs md:text-sm tracking-widest mb-4">E-WASTE HORROR ESCAPE</p>
+
+            <div class="bg-neutral-900 border border-green-900 rounded-xl p-4 text-left text-xs md:text-sm text-neutral-300 leading-relaxed mb-6 space-y-2">
+                <p class="text-yellow-400 font-bold">📜 프롤로그:</p>
+                <p>당신은 멀쩡한 스마트폰과 전자기기를 버리고 늘 새것만 쫓던 얼리어답터였습니다.</p>
+                <p>버려진 전자폐기물 산더미 속에서 붉은 눈의 토끼 인형(<span class="text-yellow-300 font-bold">우사기</span>)을 발로 차버린 순간... 공간이 찌그러지며 기괴한 노란 <span class="text-yellow-400 font-bold">백룸</span> 차원으로 떨어졌습니다!</p>
+                <p class="text-red-400">무분별하게 버려진 전자 쓰레기들의 원한으로 태어난 우사기를 피해, 5개의 CRT 터미널을 해제하고 현실로 탈출하십시오!</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-xs text-neutral-400 border-t border-b border-green-900 py-3 mb-6">
+                <div>[WASD] 이동</div>
+                <div>[Shift] 달리기</div>
+                <div>[F] 손전등 On/Off</div>
+                <div>[E] 상호작용</div>
+            </div>
+
+            <button id="btn-start" class="w-full py-4 bg-green-500 hover:bg-green-400 text-black font-extrabold text-lg rounded-xl transition duration-200 shadow-lg shadow-green-500/30">
+                백룸에 진입하기 (시작)
+            </button>
+        </div>
+    </div>
+
+    <!-- CRT TERMINAL QUIZ MODAL -->
+    <div id="terminal-modal" class="absolute inset-0 bg-black/80 backdrop-blur-md flex justify-center items-center z-40 hidden p-4 pointer-events-auto">
+        <div class="terminal-screen max-w-lg w-full p-6 rounded-2xl font-mono text-green-400">
+            <div class="flex justify-between items-center border-b border-green-800 pb-2 mb-4">
+                <span id="terminal-id" class="text-xs font-bold text-green-300">TERMINAL #1</span>
+                <span class="text-xs text-green-600">CRT E-WASTE CIRCUIT</span>
+            </div>
+            <p id="terminal-question" class="text-sm md:text-base text-neutral-100 font-semibold mb-6 leading-relaxed">
+                [퀴즈 로딩 중...]
+            </p>
+            <div id="terminal-options" class="space-y-3">
+                <!-- Buttons injected via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- EMERGENCY CAUGHT EMP QUIZ MODAL -->
+    <div id="caught-modal" class="absolute inset-0 bg-red-950/90 backdrop-blur-md flex justify-center items-center z-50 hidden p-4 pointer-events-auto">
+        <div class="border-2 border-red-500 bg-neutral-900 max-w-md w-full p-6 rounded-2xl shadow-2xl font-mono">
+            <div class="flex justify-between items-center border-b border-red-800 pb-2 mb-4">
+                <span class="text-red-500 font-bold text-xs flex items-center gap-1">
+                    <span class="w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
+                    ⚠️ 우사기에게 잡힘!
+                </span>
+                <span id="emp-timer" class="text-xl font-extrabold text-red-400">10.0s</span>
+            </div>
+            <p id="emp-question" class="text-sm text-yellow-300 font-bold mb-4 leading-relaxed">
+                [EMP 긴급 퀴즈]
+            </p>
+            <div id="emp-options" class="space-y-2">
+                <!-- Emergency Options injected via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ENDING / GAME OVER OVERLAY -->
+    <div id="end-screen" class="absolute inset-0 bg-black/95 flex justify-center items-center z-50 hidden p-6 pointer-events-auto">
+        <div class="max-w-xl w-full border-2 border-neutral-700 bg-neutral-950 p-8 rounded-2xl text-center font-mono">
+            <h2 id="end-title" class="text-3xl font-black mb-2 text-red-500">GAME OVER</h2>
+            <p id="end-monologue" class="text-yellow-300 text-sm italic mb-6">"..."</p>
+
+            <div id="end-environmental-box" class="bg-neutral-900 border border-emerald-800/80 p-5 rounded-xl text-left text-xs text-neutral-300 space-y-2 mb-6 leading-relaxed">
+                <p class="text-emerald-400 font-bold text-sm">🌱 [E-Waste 백룸의 교훈]</p>
+                <p id="end-environmental-text">
+                    전 세계 연간 6,200만 톤의 E-Waste가 발생합니다... 당신의 무심한 소비가 백룸의 괴물을 만듭니다. 수리할 권리를 지키고 자원을 재활용하세요.
+                </p>
+            </div>
+
+            <button onclick="location.reload()" class="px-8 py-3.5 bg-green-500 hover:bg-green-400 text-black font-extrabold rounded-xl transition">
+                다시 도전하기
+            </button>
+        </div>
+    </div>
+
+    <!-- GAME CODE EXECUTION -->
+    <script>
+    window.addEventListener('DOMContentLoaded', () => {
+
+        /* --- CONFIGURATION & CONSTANTS --- */
+        const MAP_SIZE = 18; // 18x18 Large Maze Matrix
+        const CELL_SIZE = 10;
+        const WALL_HEIGHT = 8;
+
+        // Player & Usagi Movement Speed Settings
+        const PLAYER_SPEED_NORMAL = 8.0;
+        const PLAYER_SPEED_SPRINT = 12.0;
+        const USAGI_SPEED_NORMAL = 6.2; // Significantly lowered for strategizing
+        const USAGI_SPEED_RAGE = 9.3;
+
+        /* --- GLOBAL GAME STATES --- */
+        let scene, camera, renderer, controls;
+        let maze = [];
+        let wallBoxes = [];
+        let hidingBoxes = [];
+        let terminals = [];
+        let exitDoor = null;
+
+        let isGameStarted = false;
+        let isTerminalOpen = false;
+        let isCaughtOpen = false;
+
+        let graceTimer = 20; // 20s Grace Period before Usagi starts hunting
+        let graceInterval = null;
+
+        let player = {
+            x: 1.5 * CELL_SIZE,
+            z: 1.5 * CELL_SIZE,
+            lives: 3,
+            battery: 100,
+            flashlightOn: true,
+            isSprinting: false,
+            isHiding: false,
+            terminalsCleared: 0,
+            velocity: new THREE.Vector3()
+        };
+
+        let usagi = {
+            mesh: null,
+            x: (MAP_SIZE - 2.5) * CELL_SIZE,
+            z: (MAP_SIZE - 2.5) * CELL_SIZE,
+            y: 0, // Ground contact offset
+            state: 'IDLE', // IDLE, PATROL, CHASE, RAGE, STUNNED
+            rageTimer: 0,
+            stunTimer: 0,
+            patrolTarget: { x: 0, z: 0 },
+            animTime: 0
+        };
+
+        let keys = {};
+        let monologueTimeout = null;
+        let audioCtx = null;
+        let flashlight = null;
+
+        /* --- AUDIO SYNTHESIS (Web Audio API) --- */
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+
+            if (type === 'footstep') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(70, now);
+                osc.frequency.exponentialRampToValueAtTime(20, now + 0.08);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.08);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.08);
+            } else if (type === 'roar') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(450, now);
+                osc.frequency.linearRampToValueAtTime(150, now + 0.5);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.5);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            } else if (type === 'emp') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(900, now);
+                osc.frequency.exponentialRampToValueAtTime(80, now + 0.7);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.7);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.7);
+            } else if (type === 'click') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.05);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.05);
+            }
+        }
+
+        /* --- DYNAMIC MONOLOGUE SUBTITLE SYSTEM --- */
+        function triggerMonologue(text, duration = 4000) {
+            const container = document.getElementById('monologue-container');
+            const label = document.getElementById('monologue-text');
+            label.innerText = text;
+            container.style.opacity = '1';
+
+            clearTimeout(monologueTimeout);
+            monologueTimeout = setTimeout(() => {
+                container.style.opacity = '0';
+            }, duration);
+        }
+
+        /* --- MAZE GENERATOR --- */
+        function generateMaze(size) {
+            let grid = Array(size).fill(null).map(() => Array(size).fill(1));
+            function carve(r, c) {
+                grid[r][c] = 0;
+                let dirs = [[-2,0],[2,0],[0,-2],[0,2]].sort(() => Math.random() - 0.5);
+                for (let [dr, dc] of dirs) {
+                    let nr = r + dr, nc = c + dc;
+                    if (nr > 0 && nr < size - 1 && nc > 0 && nc < size - 1 && grid[nr][nc] === 1) {
+                        grid[r + dr/2][c + dc/2] = 0;
+                        carve(nr, nc);
+                    }
+                }
+            }
+            carve(1, 1);
+
+            // Carve additional open corridors for hiding and loops
+            for (let i = 0; i < 20; i++) {
+                let rx = Math.floor(Math.random() * (size - 2)) + 1;
+                let ry = Math.floor(Math.random() * (size - 2)) + 1;
+                grid[ry][rx] = 0;
+            }
+            return grid;
+        }
+
+        /* --- THREE.JS SCENE CREATION --- */
+        function initScene() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050803);
+            scene.fog = new THREE.FogExp2(0x050803, 0.035);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // PointerLockControls Initialization
+            controls = new THREE.PointerLockControls(camera, document.body);
+
+            // Ambient Light & Player Flashlight
+            const ambient = new THREE.AmbientLight(0x1a2b1a, 0.9);
+            scene.add(ambient);
+
+            flashlight = new THREE.SpotLight(0xffffff, 2.5, 35, Math.PI / 5, 0.4, 1);
+            flashlight.position.set(0, 0, 0);
+            camera.add(flashlight);
+            flashlight.target.position.set(0, 0, -1);
+            camera.add(flashlight.target);
+            scene.add(camera);
+
+            buildLevel();
+            createUsagiCharacter();
+
+            // Window Resize listener
+            window.addEventListener('resize', onWindowResize);
+
+            // Input listeners
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+        }
+
+        /* --- BUILD LEVEL (WALLS, CRT TERMINALS, HIDING OBJECTS) --- */
+        function buildLevel() {
+            maze = generateMaze(MAP_SIZE);
+
+            // Textures
+            const canvas = document.createElement('canvas');
+            canvas.width = canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#112211'; ctx.fillRect(0,0,128,128);
+            ctx.fillStyle = '#1b3b1b'; 
+            for(let i=0; i<30; i++) ctx.fillRect(Math.random()*128, Math.random()*128, 8, 8);
+            const wallTex = new THREE.CanvasTexture(canvas);
+            wallTex.wrapS = wallTex.wrapT = THREE.RepeatWrapping;
+
+            const floorGeo = new THREE.PlaneGeometry(MAP_SIZE * CELL_SIZE, MAP_SIZE * CELL_SIZE);
+            const floorMat = new THREE.MeshStandardMaterial({ color: 0x081408, roughness: 0.8 });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.set((MAP_SIZE * CELL_SIZE) / 2, 0, (MAP_SIZE * CELL_SIZE) / 2);
+            scene.add(floor);
+
+            const ceilMat = new THREE.MeshBasicMaterial({ color: 0x020502 });
+            const ceiling = new THREE.Mesh(floorGeo, ceilMat);
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.set((MAP_SIZE * CELL_SIZE) / 2, WALL_HEIGHT, (MAP_SIZE * CELL_SIZE) / 2);
+            scene.add(ceiling);
+
+            // Build Walls & Collect Open Spaces
+            const wallGeo = new THREE.BoxGeometry(CELL_SIZE, WALL_HEIGHT, CELL_SIZE);
+            const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.6 });
+
+            let emptyCells = [];
+
+            for (let r = 0; r < MAP_SIZE; r++) {
+                for (let c = 0; c < MAP_SIZE; c++) {
+                    const x = c * CELL_SIZE + CELL_SIZE / 2;
+                    const z = r * CELL_SIZE + CELL_SIZE / 2;
+
+                    if (maze[r][c] === 1) {
+                        const wall = new THREE.Mesh(wallGeo, wallMat);
+                        wall.position.set(x, WALL_HEIGHT / 2, z);
+                        scene.add(wall);
+                        wallBoxes.push(new THREE.Box3().setFromObject(wall));
+                    } else {
+                        if (r > 1 || c > 1) emptyCells.push({ r, c, x, z });
+                    }
+                }
+            }
+
+            // Place 5 CRT Terminals
+            emptyCells.sort(() => Math.random() - 0.5);
+            const termGeo = new THREE.BoxGeometry(1.8, 2.4, 1.4);
+            const termMat = new THREE.MeshStandardMaterial({ color: 0x0f3818, emissive: 0x00ff66, emissiveIntensity: 0.3 });
+
+            for (let i = 0; i < 5; i++) {
+                let cell = emptyCells.pop();
+                let termMesh = new THREE.Mesh(termGeo, termMat);
+                termMesh.position.set(cell.x, 1.2, cell.z);
+                scene.add(termMesh);
+
+                let light = new THREE.PointLight(0x00ff66, 1.2, 8);
+                light.position.set(cell.x, 2.2, cell.z);
+                scene.add(light);
+
+                terminals.push({
+                    x: cell.x,
+                    z: cell.z,
+                    mesh: termMesh,
+                    cleared: false,
+                    id: i + 1
+                });
+            }
+
+            // Place Hiding Objects (E-Waste piles & Server Racks)
+            createHidingSpots(emptyCells);
+
+            // Exit Door
+            const doorGeo = new THREE.BoxGeometry(CELL_SIZE * 0.7, WALL_HEIGHT * 0.7, 0.4);
+            const doorMat = new THREE.MeshStandardMaterial({ color: 0x440000, emissive: 0xff0000, emissiveIntensity: 0.2 });
+            exitDoor = new THREE.Mesh(doorGeo, doorMat);
+            exitDoor.position.set((MAP_SIZE - 1.5) * CELL_SIZE, WALL_HEIGHT * 0.35, (MAP_SIZE - 1.5) * CELL_SIZE);
+            scene.add(exitDoor);
+        }
+
+        /* --- CREATE HIDING SPOTS --- */
+        function createHidingSpots(emptyCells) {
+            const rackGeo = new THREE.BoxGeometry(2.6, 4.8, 2.6);
+            const wasteGeo = new THREE.BoxGeometry(3.2, 3.2, 3.2);
+            const spotMat = new THREE.MeshStandardMaterial({ color: 0x11281a, roughness: 0.9 });
+
+            for (let i = 0; i < 16; i++) {
+                if (emptyCells.length === 0) break;
+                let cell = emptyCells.pop();
+
+                let isRack = i % 2 === 0;
+                let spotMesh = new THREE.Mesh(isRack ? rackGeo : wasteGeo, spotMat);
+                spotMesh.position.set(cell.x, isRack ? 2.4 : 1.6, cell.z);
+                scene.add(spotMesh);
+
+                // Add to collision & hiding detection
+                let box = new THREE.Box3().setFromObject(spotMesh);
+                wallBoxes.push(box);
+                hidingBoxes.push({
+                    x: cell.x,
+                    z: cell.z,
+                    radius: 3.0,
+                    mesh: spotMesh
+                });
+            }
+        }
+
+        /* --- CREATE USAGI CHARACTER (Proper Floor Placement FIX) --- */
+        function createUsagiCharacter() {
+            usagi.group = new THREE.Group();
+
+            // Materials
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xfffae6, roughness: 0.4 }); // Cream Usagi
+            const cheekMat = new THREE.MeshStandardMaterial({ color: 0xffb3c6 }); // Pink Cheeks
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0033 }); // Glowing Red Eyes
+
+            // Body
+            const bodyGeo = new THREE.SphereGeometry(1.2, 16, 16);
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 1.2; // Sits precisely on floor
+            usagi.group.add(body);
+
+            // Head
+            const headGeo = new THREE.SphereGeometry(0.95, 16, 16);
+            const head = new THREE.Mesh(headGeo, bodyMat);
+            head.position.y = 2.5;
+            usagi.group.add(head);
+
+            // Long Rabbit Ears
+            const earGeo = new THREE.CylinderGeometry(0.12, 0.22, 1.5, 8);
+            const leftEar = new THREE.Mesh(earGeo, bodyMat);
+            leftEar.position.set(-0.4, 3.6, 0);
+            leftEar.rotation.z = -0.25;
+            usagi.group.add(leftEar);
+
+            const rightEar = new THREE.Mesh(earGeo, bodyMat);
+            rightEar.position.set(0.4, 3.6, 0);
+            rightEar.rotation.z = 0.25;
+            usagi.group.add(rightEar);
+
+            // Pink Cheeks
+            const cheekGeo = new THREE.SphereGeometry(0.2, 8, 8);
+            const leftCheek = new THREE.Mesh(cheekGeo, cheekMat);
+            leftCheek.position.set(-0.55, 2.35, 0.7);
+            const rightCheek = new THREE.Mesh(cheekGeo, cheekMat);
+            rightCheek.position.set(0.55, 2.35, 0.7);
+            usagi.group.add(leftCheek);
+            usagi.group.add(rightCheek);
+
+            // Horror Red Eyes
+            const eyeGeo = new THREE.SphereGeometry(0.16, 8, 8);
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+            leftEye.position.set(-0.3, 2.65, 0.8);
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+            rightEye.position.set(0.3, 2.65, 0.8);
+            usagi.group.add(leftEye);
+            usagi.group.add(rightEye);
+
+            // Position Usagi in far corner
+            usagi.group.position.set(usagi.x, 0, usagi.z);
+            scene.add(usagi.group);
+
+            usagi.patrolTarget = getRandomPatrolPoint();
+        }
+
+        function getRandomPatrolPoint() {
+            let rx = Math.floor(Math.random() * (MAP_SIZE - 2)) + 1;
+            let rz = Math.floor(Math.random() * (MAP_SIZE - 2)) + 1;
+            while (maze[rz][rx] === 1) {
+                rx = Math.floor(Math.random() * (MAP_SIZE - 2)) + 1;
+                rz = Math.floor(Math.random() * (MAP_SIZE - 2)) + 1;
+            }
+            return { x: rx * CELL_SIZE + CELL_SIZE/2, z: rz * CELL_SIZE + CELL_SIZE/2 };
+        }
+
+        /* --- KEY INPUT HANDLERS --- */
+        function onKeyDown(e) {
+            keys[e.code] = true;
+            if (e.code === 'KeyF' && isGameStarted && !isTerminalOpen && !isCaughtOpen) {
+                player.flashlightOn = !player.flashlightOn;
+                flashlight.visible = player.flashlightOn;
+                playSound('click');
+            }
+            if (e.code === 'KeyE' && isGameStarted) {
+                handleInteraction();
+            }
+        }
+
+        function onKeyUp(e) {
+            keys[e.code] = false;
+        }
+
+        /* --- GAME START PROCEDURE --- */
+        function startGame() {
+            initAudio();
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('hud').classList.remove('hidden');
+
+            isGameStarted = true;
+            controls.lock();
+
+            // Initial Opening Monologues
+            triggerMonologue("윽... 머리야... 여기가 어디지? 타는 냄새와 노란 벽지뿐이야...", 4500);
+            setTimeout(() => {
+                if (isGameStarted) {
+                    triggerMonologue("저게 뭐야?! 붉은 눈의 거대 토끼가 왜 날 쫓아오는 거지?! 내가 버렸던 그 인형인가?!", 5000);
+                }
+            }, 5000);
+
+            // 20 Second Grace Timer Count
+            graceInterval = setInterval(() => {
+                if (!isGameStarted) return;
+                graceTimer--;
+                document.getElementById('grace-timer').innerText = graceTimer;
+                if (graceTimer <= 0) {
+                    clearInterval(graceInterval);
+                    document.getElementById('grace-status').innerText = "⚠️ 우사기 추격 개시!";
+                    document.getElementById('grace-status').classList.add('text-red-500');
+                    usagi.state = 'PATROL';
+                }
+            }, 1000);
+        }
+
+        document.getElementById('btn-start').addEventListener('click', startGame);
+
+        /* --- MAIN ANIMATION LOOP --- */
+        let lastTime = performance.now();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const now = performance.now();
+            const delta = Math.min((now - lastTime) / 1000, 0.1);
+            lastTime = now;
+
+            if (isGameStarted && controls.isLocked && !isTerminalOpen && !isCaughtOpen) {
+                updatePlayer(delta);
+                updateUsagi(delta);
+                checkHidingStatus();
+                updateBattery(delta);
+                renderMinimap();
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        /* --- PLAYER MOVEMENT & COLLISION --- */
+        function updatePlayer(delta) {
+            player.isSprinting = keys['ShiftLeft'] || keys['ShiftRight'];
+            const speed = player.isSprinting ? PLAYER_SPEED_SPRINT : PLAYER_SPEED_NORMAL;
+
+            let moveX = 0, moveZ = 0;
+            if (keys['KeyW'] || keys['ArrowUp']) moveZ -= 1;
+            if (keys['KeyS'] || keys['ArrowDown']) moveZ += 1;
+            if (keys['KeyA'] || keys['ArrowLeft']) moveX -= 1;
+            if (keys['KeyD'] || keys['ArrowRight']) moveX += 1;
+
+            if (moveX !== 0 || moveZ !== 0) {
+                let len = Math.hypot(moveX, moveZ);
+                moveX /= len; moveZ /= len;
+
+                // Move relative to camera direction
+                const cameraDirection = new THREE.Vector3();
+                camera.getWorldDirection(cameraDirection);
+                cameraDirection.y = 0;
+                cameraDirection.normalize();
+
+                const sideDirection = new THREE.Vector3().crossVectors(camera.up, cameraDirection).normalize();
+
+                const moveVector = new THREE.Vector3();
+                moveVector.addScaledVector(cameraDirection, -moveZ);
+                moveVector.addScaledVector(sideDirection, -moveX);
+                moveVector.normalize().multiplyScalar(speed * delta);
+
+                let nextX = player.x + moveVector.x;
+                let nextZ = player.z + moveVector.z;
+
+                let playerRadius = 1.0;
+                let canMoveX = true, canMoveZ = true;
+
+                for (let box of wallBoxes) {
+                    if (box.intersectsSphere(new THREE.Sphere(new THREE.Vector3(nextX, 2, player.z), playerRadius))) canMoveX = false;
+                    if (box.intersectsSphere(new THREE.Sphere(new THREE.Vector3(player.x, 2, nextZ), playerRadius))) canMoveZ = false;
+                }
+
+                if (canMoveX) player.x = nextX;
+                if (canMoveZ) player.z = nextZ;
+
+                if (Math.random() < 0.08) playSound('footstep');
+            }
+
+            camera.position.set(player.x, 2.2, player.z);
+            checkInteractionPrompts();
+        }
+
+        /* --- BATTERY DRAIN & MONOLOGUE TRIGGER --- */
+        let batteryWarned = false;
+        function updateBattery(delta) {
+            if (player.flashlightOn) {
+                player.battery = Math.max(0, player.battery - delta * 0.8);
+                document.getElementById('battery-bar').style.width = player.battery + '%';
+
+                if (player.battery < 25 && !batteryWarned) {
+                    batteryWarned = true;
+                    triggerMonologue("젠장, 배터리가 떨어져가... 아껴 써야 해.", 4000);
+                }
+            }
+        }
+
+        /* --- HIDING SPOT CHECK --- */
+        function checkHidingStatus() {
+            let hiding = false;
+            for (let spot of hidingBoxes) {
+                let dist = Math.hypot(player.x - spot.x, player.z - spot.z);
+                if (dist < spot.radius) {
+                    hiding = true;
+                    break;
+                }
+            }
+
+            if (hiding && !player.isHiding) {
+                triggerMonologue("후우... 일단 숨었어. 제발 지나가라...", 3500);
+            }
+
+            player.isHiding = hiding;
+            document.getElementById('hiding-indicator').style.display = player.isHiding ? 'block' : 'none';
+        }
+
+        /* --- USAGI HUNTING AI --- */
+        function updateUsagi(delta) {
+            if (graceTimer > 0) return; // Grace period active
+
+            if (usagi.stunTimer > 0) {
+                usagi.stunTimer -= delta;
+                usagi.group.position.x = usagi.x + (Math.random() - 0.5) * 0.15;
+                usagi.group.position.z = usagi.z + (Math.random() - 0.5) * 0.15;
+                return;
+            }
+
+            let distToPlayer = Math.hypot(player.x - usagi.x, player.z - usagi.z);
+
+            // Usagi Monologue trigger when nearby
+            if (distToPlayer < 18 && distToPlayer > 8 && Math.random() < 0.005) {
+                triggerMonologue("(거친 숨소리) 오지 마... 제발 오지 마...!", 3000);
+            }
+
+            // Raycast Line-Of-Sight Check
+            let canSeePlayer = false;
+            if (distToPlayer < 25 && (!player.isHiding || distToPlayer < 4.5)) {
+                canSeePlayer = true;
+            }
+
+            if (canSeePlayer) {
+                if (usagi.state !== 'CHASE' && usagi.state !== 'RAGE') {
+                    usagi.state = usagi.rageTimer > 0 ? 'RAGE' : 'CHASE';
+                    playSound('roar');
+                }
+            } else if (usagi.state === 'CHASE' && distToPlayer > 30) {
+                usagi.state = 'PATROL';
+                usagi.patrolTarget = getRandomPatrolPoint();
+            }
+
+            if (usagi.rageTimer > 0) {
+                usagi.rageTimer -= delta;
+                if (usagi.rageTimer <= 0 && usagi.state === 'RAGE') usagi.state = 'CHASE';
+            }
+
+            // Choose Speed
+            let speed = (usagi.state === 'RAGE') ? USAGI_SPEED_RAGE : USAGI_SPEED_NORMAL;
+
+            let targetX = (usagi.state === 'CHASE' || usagi.state === 'RAGE') ? player.x : usagi.patrolTarget.x;
+            let targetZ = (usagi.state === 'CHASE' || usagi.state === 'RAGE') ? player.z : usagi.patrolTarget.z;
+
+            let dx = targetX - usagi.x;
+            let dz = targetZ - usagi.z;
+            let dist = Math.hypot(dx, dz);
+
+            if (usagi.state === 'PATROL' && dist < 3) {
+                usagi.patrolTarget = getRandomPatrolPoint();
+            }
+
+            if (dist > 0.1) {
+                let step = speed * delta;
+                usagi.x += (dx / dist) * step;
+                usagi.z += (dz / dist) * step;
+                usagi.group.rotation.y = Math.atan2(dx, dz);
+            }
+
+            // Smooth Ground Contact Animation
+            usagi.animTime += delta * 5;
+            let bounceY = Math.abs(Math.sin(usagi.animTime)) * 0.25;
+            usagi.group.position.set(usagi.x, bounceY, usagi.z);
+
+            // Catch Trigger
+            if (distToPlayer < 2.0 && isGameStarted && !isCaughtOpen) {
+                triggerEmergencyCaught();
+            }
+        }
+
+        /* --- INTERACTION PROMPT CHECK --- */
+        function checkInteractionPrompts() {
+            const prompt = document.getElementById('interaction-prompt');
+            let near = false;
+
+            for (let term of terminals) {
+                if (!term.cleared) {
+                    let dist = Math.hypot(player.x - term.x, player.z - term.z);
+                    if (dist < 3.5) {
+                        prompt.innerText = "[E] CRT 터미널 접속";
+                        prompt.style.display = 'block';
+                        near = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!near && exitDoor) {
+                let dist = Math.hypot(player.x - exitDoor.position.x, player.z - exitDoor.position.z);
+                if (dist < 4.5) {
+                    prompt.innerText = player.terminalsCleared >= 5 ? "[E] 탈출 게이트 열기" : `[잠김] 터미널 해제 필요 (${player.terminalsCleared}/5)`;
+                    prompt.style.display = 'block';
+                    near = true;
+                }
+            }
+
+            if (!near) prompt.style.display = 'none';
+        }
+
+        function handleInteraction() {
+            for (let i = 0; i < terminals.length; i++) {
+                let term = terminals[i];
+                if (!term.cleared) {
+                    let dist = Math.hypot(player.x - term.x, player.z - term.z);
+                    if (dist < 3.5) {
+                        openTerminalModal(i);
+                        return;
+                    }
+                }
+            }
+
+            if (exitDoor) {
+                let dist = Math.hypot(player.x - exitDoor.position.x, player.z - exitDoor.position.z);
+                if (dist < 4.5 && player.terminalsCleared >= 5) {
+                    triggerVictory();
+                }
+            }
+        }
+
+        /* --- CRT QUIZ TERMINAL SYSTEM --- */
+        const QUIZ_DATA = [
+            {
+                q: "전자폐기물(E-Waste)을 야산이나 무단 매립지에 방치할 경우 토양과 지하수로 유출되는 대표적 독성 중금속은?",
+                opts: ["1. 납 (Lead / Pb)", "2. 알루미늄 (Aluminum)", "3. 마그네슘 (Magnesium)", "4. 나트륨 (Sodium)"],
+                ans: 0
+            },
+            {
+                q: "소비자가 자신의 가전제품이나 스마트폰을 직접 수리하거나 사설 업체에서 수리받을 권리를 보장하는 법적 운동은?",
+                opts: ["1. 수리할 권리 (Right to Repair)", "2. 무상 교환권", "3. 제조사 전점권", "4. 강제 폐기권"],
+                ans: 0
+            },
+            {
+                q: "버려진 컴퓨터 회로 기판(PCB) 및 CPU에서 고순도로 추출할 수 있는 자원은?",
+                opts: ["1. 석유", "2. 금 (Gold) 및 희토류", "3. 천연가스", "4. 석탄"],
+                ans: 1
+            },
+            {
+                q: "전 세계에서 매년 발생되는 전자폐기물(E-Waste)의 예상 수량은?",
+                opts: ["1. 약 100만 톤", "2. 약 1,000만 톤", "3. 약 6,200만 톤", "4. 약 5억 톤"],
+                ans: 2
+            },
+            {
+                q: "리튬이온 배터리 폐기 시 폭발 및 화재 방지를 위한 올바른 배출 방법은?",
+                opts: ["1. 일반 종량제 봉투에 버린다", "2. 폐배터리 전용 수거함에 배출한다", "3. 물에 적셔 버린다", "4. 가열하여 폐기한다"],
+                ans: 1
+            }
+        ];
+
+        let activeTerminalIndex = -1;
+
+        function openTerminalModal(index) {
+            isTerminalOpen = true;
+            activeTerminalIndex = index;
+            controls.unlock();
+
+            triggerMonologue("전자폐기물 처리 회로 터미널? 이걸 해제하면 나갈 수 있는 건가?", 4000);
+
+            document.getElementById('terminal-id').innerText = `CRT TERMINAL #${index + 1}`;
+            document.getElementById('terminal-question').innerText = QUIZ_DATA[index].q;
+
+            const optsDiv = document.getElementById('terminal-options');
+            optsDiv.innerHTML = '';
+
+            QUIZ_DATA[index].opts.forEach((opt, idx) => {
+                let btn = document.createElement('button');
+                btn.className = "w-full text-left bg-emerald-950/80 hover:bg-green-500 hover:text-black text-green-300 p-3 rounded-lg border border-green-600 transition font-bold text-xs md:text-sm";
+                btn.innerText = opt;
+                btn.onclick = () => submitTerminalAnswer(idx);
+                optsDiv.appendChild(btn);
+            });
+
+            document.getElementById('terminal-modal').classList.remove('hidden');
+        }
+
+        function submitTerminalAnswer(chosenIdx) {
+            const data = QUIZ_DATA[activeTerminalIndex];
+            document.getElementById('terminal-modal').classList.add('hidden');
+            isTerminalOpen = false;
+            controls.lock();
+
+            if (chosenIdx === data.ans) {
+                terminals[activeTerminalIndex].cleared = true;
+                terminals[activeTerminalIndex].mesh.material.emissive.setHex(0x00ffff);
+                player.terminalsCleared++;
+ EcoFX.notify("good","안전 처리 지식 확인 → 회로 1개 해제. 전자폐기물은 일반 쓰레기와 분리해 회수합니다.");
+                document.getElementById('hud-terminals').innerText = `${player.terminalsCleared} / 5`;
+                playSound('emp');
+
+                triggerMonologue(`회로 해제 성공! (${player.terminalsCleared}/5)`, 3500);
+            } else {
+                playSound('roar');
+                usagi.rageTimer = 10;
+ EcoFX.notify("bad","처리 방식 오답 → 추격 위험 증가. 단말기 내용을 다시 확인하세요.");
+                usagi.state = 'RAGE';
+                triggerMonologue("아악! 회로가 합선됐어! 우사기가 더 광분해서 뛰어온다!", 4000);
+            }
+        }
+
+        /* --- EMERGENCY CAUGHT EMP QUIZ MECHANIC --- */
+        let empTimer = 10.0;
+        let empInterval = null;
+
+        function triggerEmergencyCaught() {
+            isCaughtOpen = true;
+            controls.unlock();
+            playSound('roar');
+
+            empTimer = 10.0;
+            document.getElementById('emp-timer').innerText = empTimer.toFixed(1) + 's';
+            document.getElementById('caught-modal').classList.remove('hidden');
+
+            const randomQuiz = QUIZ_DATA[Math.floor(Math.random() * QUIZ_DATA.length)];
+            document.getElementById('emp-question').innerText = randomQuiz.q;
+
+            const optsDiv = document.getElementById('emp-options');
+            optsDiv.innerHTML = '';
+
+            randomQuiz.opts.forEach((opt, idx) => {
+                let btn = document.createElement('button');
+                btn.className = "w-full text-left bg-neutral-800 hover:bg-red-600 text-white p-2.5 rounded-lg border border-red-700 transition font-bold text-xs";
+                btn.innerText = opt;
+                btn.onclick = () => submitEmpAnswer(idx === randomQuiz.ans);
+                optsDiv.appendChild(btn);
+            });
+
+            clearInterval(empInterval);
+            empInterval = setInterval(() => {
+                empTimer -= 0.1;
+                document.getElementById('emp-timer').innerText = Math.max(0, empTimer).toFixed(1) + 's';
+                if (empTimer <= 0) {
+                    submitEmpAnswer(false);
+                }
+            }, 100);
+        }
+
+        function submitEmpAnswer(isCorrect) {
+            clearInterval(empInterval);
+            document.getElementById('caught-modal').classList.add('hidden');
+            isCaughtOpen = false;
+
+            if (isCorrect) {
+                playSound('emp');
+                usagi.stunTimer = 5.0;
+                usagi.x = (MAP_SIZE - 2.5) * CELL_SIZE; // Bounce Usagi back
+                usagi.z = (MAP_SIZE - 2.5) * CELL_SIZE;
+                controls.lock();
+
+                triggerMonologue("먹혀라, EMP! 도망쳐야 해!", 3500);
+            } else {
+                player.lives--;
+                document.getElementById('hud-lives').innerText = '❤'.repeat(Math.max(0, player.lives));
+
+                if (player.lives <= 0) {
+                    triggerGameOver();
+                } else {
+                    usagi.stunTimer = 3.0;
+                    usagi.x = (MAP_SIZE - 2.5) * CELL_SIZE;
+                    controls.lock();
+                    triggerMonologue("크악! 공격당했어... 더 이상은 위험해!", 3500);
+                }
+            }
+        }
+
+        /* --- 2D TOP-DOWN MINI-MAP --- */
+        function renderMinimap() {
+            const canvas = document.getElementById('minimap');
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+
+            ctx.clearRect(0, 0, w, h);
+            const scale = w / MAP_SIZE;
+
+            // Draw Walls
+            ctx.fillStyle = '#0f2b18';
+            for (let r = 0; r < MAP_SIZE; r++) {
+                for (let c = 0; c < MAP_SIZE; c++) {
+                    if (maze[r][c] === 1) {
+                        ctx.fillRect(c * scale, r * scale, scale, scale);
+                    }
+                }
+            }
+
+            // Draw Terminals
+            for (let term of terminals) {
+                let tx = (term.x / CELL_SIZE) * scale;
+                let tz = (term.z / CELL_SIZE) * scale;
+                ctx.fillStyle = term.cleared ? '#00ff66' : '#ffcc00';
+                ctx.beginPath();
+                ctx.arc(tx, tz, scale * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Draw Usagi
+            let ux = (usagi.x / CELL_SIZE) * scale;
+            let uz = (usagi.z / CELL_SIZE) * scale;
+            ctx.fillStyle = '#ff0033';
+            ctx.beginPath();
+            ctx.arc(ux, uz, scale * 0.45, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw Player & Cone
+            let px = (player.x / CELL_SIZE) * scale;
+            let pz = (player.z / CELL_SIZE) * scale;
+
+            ctx.fillStyle = '#00ffff';
+            ctx.beginPath();
+            ctx.arc(px, pz, scale * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        /* --- GAME OVER & VICTORY OVERLAYS --- */
+        function triggerGameOver() {
+ EcoFX.notify("bad","탈출 실패. 배터리와 은신처를 확인하고 다시 도전하세요.");
+            isGameStarted = false;
+            controls.unlock();
+            document.getElementById('end-title').innerText = "GAME OVER";
+            document.getElementById('end-title').className = "text-3xl font-black mb-2 text-red-500";
+            document.getElementById('end-monologue').innerText = '"우사기... 내가 버렸던 전자 쓰레기들이 날 먹어치우고 있어..."';
+            document.getElementById('end-screen').classList.remove('hidden');
+        }
+
+        function triggerVictory() {
+ EcoFX.notify("win","5개 회로 해제 후 탈출 성공. 다시 도전해 안전한 경로를 찾아보세요.");
+            isGameStarted = false;
+            controls.unlock();
+            document.getElementById('end-title').innerText = "ESCAPE SUCCESS!";
+            document.getElementById('end-title').className = "text-3xl font-black mb-2 text-green-400";
+            document.getElementById('end-monologue').innerText = '"살았다... 드디어 현실이야."';
+            document.getElementById('end-screen').classList.remove('hidden');
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Initialize and Start Animation Loop
+EcoFX.mount({title:"전자폐기물 안전 처리",goal:"단말기 5곳의 처리 방법을 확인하고 출구로 이동하세요.",note:"",read:()=>({label:'회로 '+player.terminalsCleared+'/5 · 기록',progress:player.terminalsCleared*20,detail:'해제한 회로 '+player.terminalsCleared+'개 · 배터리 '+Math.round(player.battery)+'%. 퀴즈 정답이 출구를 엽니다.'}),actions:[]});
+        initScene();
+        animate();
+    });
+    </script>
+</body>
+</html>

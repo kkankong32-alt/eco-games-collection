@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta name="referrer" content="no-referrer">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>응애부터 흙까지: 걸어가는 인생 파노라마</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="vendor/5.js"></script>
+    <script crossorigin src="vendor/4.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="vendor/3.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <link rel="stylesheet" href="vendor/tailwind.css">
+    
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000; overflow: hidden; font-family: 'Pretendard', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.3); border-radius: 10px; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-up { animation: fadeUp 0.3s ease-out forwards; }
+        .no-select { user-select: none; -webkit-user-select: none; }
+        
+        /* Enforce 16:9 Aspect Ratio Container */
+        #game-container {
+            width: 100vw;
+            height: 56.25vw; /* 16:9 ratio */
+            max-height: 100vh;
+            max-width: 177.78vh; /* 16:9 ratio */
+            margin: auto;
+            position: absolute;
+            top: 0; bottom: 0; left: 0; right: 0;
+            background: #111;
+            overflow: hidden;
+        }
+    </style>
+<style>.hidden { display: none !important; }</style>
+<script src="eco-feedback.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+        // --- GAME DATA ---
+        const ENVIRONMENTS = {
+            '🌲 시골 마을': { baseLifespan: 78, eco: 85, med: 30 },
+            '🏢 대도시': { baseLifespan: 82, eco: 35, med: 80 }
+        };
+
+        const ITEMS = [
+            { id: 'timeMachine', icon: '⏳', name: '타임머신', desc: '이전 선택 되돌리기', cost: 3000 },
+            { id: 'invisibility', icon: '👻', name: '투명인간 망토', desc: '페널티 없이 스킵', cost: 2000 },
+            { id: 'timeStop', icon: '⏱️', name: '시간 정지 시계', desc: '미니게임 보상 2배', cost: 1500 },
+            { id: 'elixir', icon: '💊', name: '불로장생 영약', desc: '수명 +5년 연장', cost: 5000 }
+        ];
+
+        // 40+ Questions spanning life
+        const QUESTIONS = [
+            // 0-6 Years (Baby)
+            { ageAdd: 1, text: "엄마 뱃속이다. 태교 음악으로 모차르트가 들려온다.", options: [ { text: "박자에 맞춰 발길질한다", stats: { hap: 10, eco: 0, med: 5, money: 0 } }, { text: "지루하다. 그냥 잔다", stats: { hap: 5, eco: 0, med: 10, money: 0 } } ] },
+            { ageAdd: 1, text: "태어났다! 첫 울음소리를 낼 시간이다.", options: [ { text: "우렁차게 '응애!!!'", stats: { hap: 5, eco: 0, med: 10, money: 0 } }, { text: "엣헴. 조용히 눈을 뜬다", stats: { hap: 10, eco: 0, med: -5, money: 0 } } ] },
+            { ageAdd: 1, text: "첫 걸음마. 바닥에 떨어진 뻥튀기를 발견했다.", options: [ { text: "3초 룰! 잽싸게 주워 먹는다", stats: { hap: 10, eco: 0, med: -10, money: 0 } }, { text: "개미에게 양보한다", stats: { hap: 5, eco: 10, med: 0, money: 0 } }, { text: "울어서 새것을 요구한다", stats: { hap: -5, eco: 0, med: 5, money: 0 } } ] },
+            { ageAdd: 1, text: "유치원 첫날. 골목대장이 내 간식을 뺏으려 한다.", options: [ { text: "이빨로 깨문다", stats: { hap: 10, eco: 0, med: -5, money: 0 } }, { text: "울면서 양보한다", stats: { hap: -10, eco: 0, med: 5, money: 0 } } ] },
+            { ageAdd: 1, text: "장난감 가게에서 맘에 드는 플라스틱 로봇을 발견했다.", options: [ { text: "드러누워 오열 시위", stats: { hap: 10, eco: -5, med: 0, money: -50 } }, { text: "친환경 나무 블록으로 타협한다", stats: { hap: -5, eco: 10, med: 0, money: 0 } } ] },
+            { ageAdd: 1, text: "종이접기 시간. 색종이를 어떻게 쓸까?", options: [ { text: "구겨서 공으로 던지고 논다", stats: { hap: 15, eco: -10, med: 0, money: 0 } }, { text: "자투리까지 아껴서 학을 접는다", stats: { hap: 5, eco: 15, med: 0, money: 0 } } ] },
+            // 7-13 Years (Child)
+            { ageAdd: 1, text: "초등학교 입학. 길에서 500원짜리 동전을 주웠다!", options: [ { text: "경찰서에 가져간다", stats: { hap: -5, eco: 0, med: 0, money: 0 } }, { text: "비닐 포장된 불량식품을 사 먹는다", stats: { hap: 15, eco: -5, med: -5, money: 5 } } ] },
+            { ageAdd: 1, text: "여름방학 에어컨 온도 전쟁.", options: [ { text: "18도 파워냉방! 북극곰아 미안", stats: { hap: 20, eco: -20, med: -5, money: -10 } }, { text: "26도 맞추고 선풍기를 튼다", stats: { hap: -5, eco: 15, med: 5, money: 0 } } ] },
+            { ageAdd: 1, text: "학교 급식에 싫어하는 가지 볶음이 나왔다.", options: [ { text: "잔반통에 몰래 버린다 (음식물 쓰레기)", stats: { hap: 10, eco: -15, med: 0, money: 0 } }, { text: "코 막고 억지로 다 먹는다", stats: { hap: -10, eco: 15, med: 10, money: 0 } } ] },
+            { ageAdd: 1, text: "소풍날, 과자 비닐이 바람에 날아갔다.", options: [ { text: "모른 척 도망간다", stats: { hap: 5, eco: -15, med: 0, money: 0 } }, { text: "끝까지 쫓아가서 쓰레기통에 넣는다", stats: { hap: -5, eco: 20, med: 0, money: 0 } } ] },
+            { ageAdd: 1, text: "구구단 7단을 다 못 외웠다.", options: [ { text: "배 아프다고 뻥치고 양호실 도망", stats: { hap: 10, eco: 0, med: 5, money: 0 } }, { text: "머리에 쥐가 나도록 외운다", stats: { hap: -10, eco: 0, med: -5, money: 0 } } ] },
+            { ageAdd: 1, text: "친구 생일 파티 선물을 고를 시간.", options: [ { text: "유행하는 비싼 플라스틱 장난감", stats: { hap: 10, eco: -10, med: 0, money: -30 } }, { text: "재활용품으로 만든 정성스런 미술 작품", stats: { hap: -5, eco: 15, med: 0, money: 0 } } ] },
+            { ageAdd: 1, text: "비가 오는 날, 우산이 없다.", options: [ { text: "편의점에서 일회용 비닐우산을 산다", stats: { hap: 5, eco: -15, med: 0, money: -10 } }, { text: "비를 맞으며 뛰어간다 (낭만)", stats: { hap: 10, eco: 5, med: -10, money: 0 } } ] },
+            // 14-19 Years (Teen)
+            { ageAdd: 1, text: "중학교 입학. 중2병의 기운이 스멀스멀 올라온다.", options: [ { text: "오른손의 흑염룡을 해방한다", stats: { hap: 15, eco: 0, med: -5, money: 0 } }, { text: "현실을 직시하고 공부한다", stats: { hap: -10, eco: 0, med: 5, money: 0 } } ] },
+            { ageAdd: 1, text: "아침 등굣길, 늦잠을 잤다!", options: [ { text: "아빠 차로 태워달라고 떼쓴다 (매연 뿜뿜)", stats: { hap: 10, eco: -15, med: 0, money: 0 } }, { text: "매연을 마시며 전력 질주로 뛴다", stats: { hap: -5, eco: 10, med: 5, money: 0 } }, { text: "자전거를 타고 여유롭게 지각한다", stats: { hap: 15, eco: 20, med: 10, money: 0 } } ] },
+            { ageAdd: 1, text: "내일이 기말고사인데 공부를 안 했다.", options: [ { text: "밤샘 벼락치기 (플라스틱 캔커피 3개)", stats: { hap: -15, eco: -15, med: -10, money: -15 } }, { text: "조상님을 믿고 텀블러에 물 마시며 잔다", stats: { hap: 15, eco: 15, med: 10, money: 0 } } ] },
+            { ageAdd: 1, text: "짝사랑하는 친구에게 고백할 찬스!", options: [ { text: "카톡으로 찌질하게 '자니?'", stats: { hap: -10, eco: 0, med: 0, money: 0 } }, { text: "재생종이 편지에 마음을 적어 준다", stats: { hap: 20, eco: 15, med: 5, money: 0 } } ] },
+            { ageAdd: 1, text: "야간 자율학습 시간, 담임 선생님이 졸고 계신다.", options: [ { text: "담장을 넘어 피시방으로 탈출한다!", stats: { hap: 20, eco: 0, med: -5, money: -10 } }, { text: "조용히 수학 정석을 편다", stats: { hap: -10, eco: 0, med: 0, money: 0 } } ] },
+            { ageAdd: 1, text: "수학여행 장소를 투표한다.", options: [ { text: "비행기 타고 제주도! (탄소 배출량 증가)", stats: { hap: 20, eco: -20, med: 0, money: -50 } }, { text: "기차 타고 경주! (친환경 여행)", stats: { hap: 10, eco: 15, med: 0, money: -30 } } ] },
+            // 20-29 Years (Young Adult)
+            { ageAdd: 2, text: "대학 전공을 선택해야 한다.", options: [ { text: "취업률 1위! 화석연료 공학", stats: { hap: -10, eco: -15, med: 5, money: 200 } }, { text: "내 심장이 시키는 환경 생태학", stats: { hap: 20, eco: 25, med: -5, money: -50 } } ] },
+            { ageAdd: 2, text: "자취 시작. 야식으로 마라탕 배달을 시켰다.", options: [ { text: "다 먹고 기름기 묻은 채로 쓰레기통 투척", stats: { hap: 10, eco: -20, med: -5, money: 0 } }, { text: "귀찮지만 깨끗이 씻어 분리수거", stats: { hap: -10, eco: 20, med: 0, money: 0 } } ] },
+            { ageAdd: 2, text: "새 스마트폰이 출시되었다. 현재 폰은 액정이 조금 금갔다.", options: [ { text: "당장 최신 폰으로 플렉스! (자원 낭비)", stats: { hap: 25, eco: -20, med: 0, money: -150 } }, { text: "액정만 고쳐서 3년 더 쓴다", stats: { hap: -10, eco: 20, med: 0, money: -30 } } ] },
+            { ageAdd: 2, text: "첫 직장 면접. '우리 회사를 왜 지원했나요?'", options: [ { text: "돈 벌려고요. (솔직함)", stats: { hap: 10, eco: 0, med: 0, money: -50 } }, { text: "ESG 경영 비전과 제 꿈이...(영혼 없음)", stats: { hap: -10, eco: 10, med: 0, money: 300 } } ] },
+            { ageAdd: 2, text: "취업 성공! 출퇴근이 너무 힘들다. 첫 차를 살까?", options: [ { text: "카푸어의 길! 가솔린 SUV", stats: { hap: 30, eco: -25, med: -10, money: -1000 } }, { text: "환경과 지갑을 위해 대중교통 이용", stats: { hap: -10, eco: 25, med: 5, money: 500 } }, { text: "중고 하이브리드를 할부로 산다", stats: { hap: 15, eco: 10, med: 5, money: -500 } } ] },
+            // 30-45 Years (Adult)
+            { ageAdd: 3, text: "사무실에 일회용 종이컵이 다 떨어졌다.", options: [ { text: "막내에게 뛰어가서 사오라고 시킨다", stats: { hap: 10, eco: -15, med: 0, money: -10 } }, { text: "이참에 다 같이 개인 텀블러를 쓰자고 건의한다", stats: { hap: -10, eco: 20, med: 5, money: 0 } } ] },
+            { ageAdd: 3, text: "마트 장보기. 에코백을 깜빡했다.", options: [ { text: "비닐봉지 3개 플렉스", stats: { hap: 10, eco: -15, med: 0, money: -5 } }, { text: "환경을 위해 양손에 수박과 대파를 안고 간다", stats: { hap: -10, eco: 15, med: -5, money: 0 } } ] },
+            { ageAdd: 3, text: "주식 장이 대폭락 중이다.", options: [ { text: "지금이 기회다! 영끌 물타기", stats: { hap: -20, eco: 0, med: -10, money: -1000 } }, { text: "어플을 삭제하고 주말 농장에 간다", stats: { hap: 10, eco: 15, med: 10, money: 200 } } ] },
+            { ageAdd: 3, text: "이사를 앞두고 있다. 어떤 집을 고를까?", options: [ { text: "단열 꽝, 뷰 맛집 통유리 신축 아파트", stats: { hap: 20, eco: -25, med: -5, money: -800 } }, { text: "단열 짱짱한 에너지 효율 1등급 주택", stats: { hap: 0, eco: 25, med: 10, money: -500 } } ] },
+            { ageAdd: 3, text: "집 안의 형광등이 나갔다.", options: [ { text: "싼 백열등으로 갈아 끼운다", stats: { hap: 0, eco: -10, med: 0, money: -5 } }, { text: "수명이 긴 친환경 LED 전구로 교체한다", stats: { hap: 5, eco: 15, med: 0, money: -30 } } ] },
+            // 46-65+ Years (Senior)
+            { ageAdd: 4, text: "거울을 보니 흰머리가 부쩍 늘었다.", options: [ { text: "화학 염색약으로 새까맣게 젊은 척한다", stats: { hap: 10, eco: -10, med: -5, money: -50 } }, { text: "자연스럽게 백발의 낭만을 즐긴다", stats: { hap: 15, eco: 15, med: 5, money: 0 } } ] },
+            { ageAdd: 4, text: "건강 검진 결과, 콜레스테롤 수치가 높다.", options: [ { text: "오늘까지만 치킨 먹고 내일부턴 다이어트", stats: { hap: 10, eco: -5, med: -20, money: -30 } }, { text: "당장 유기농 채소 정기배송 신청", stats: { hap: -15, eco: 15, med: 20, money: -100 } }, { text: "매일 산을 오르며 플로깅(쓰레기 줍기)을 한다", stats: { hap: 5, eco: 25, med: 25, money: 0 } } ] },
+            { ageAdd: 5, text: "은퇴 시기가 다가온다. 노후 자금을 어떡할까?", options: [ { text: "안전빵 은행 예적금", stats: { hap: -5, eco: 0, med: 5, money: 500 } }, { text: "친환경 기업 펀드에 장기 투자", stats: { hap: 10, eco: 20, med: 0, money: 800 } }, { text: "친구 말만 믿고 기획부동산 투자", stats: { hap: -30, eco: -20, med: -15, money: -2000 } } ] },
+            { ageAdd: 4, text: "손주가 태어났다! 선물을 주려 한다.", options: [ { text: "건전지 수백 개 들어가는 번쩍이는 장난감", stats: { hap: 15, eco: -20, med: 0, money: -200 } }, { text: "할아버지가 입던 빈티지 옷 수선해서 물려주기", stats: { hap: -10, eco: 20, med: 0, money: 0 } } ] },
+            { ageAdd: 5, text: "버킷리스트를 하나 실천할 시간이다.", options: [ { text: "탄소 발자국 펑펑! 세계일주 크루즈 여행", stats: { hap: 30, eco: -30, med: 10, money: -3000 } }, { text: "텃밭 가꾸며 자급자족 귀농 생활", stats: { hap: 20, eco: 30, med: 15, money: -500 } } ] },
+            { ageAdd: 5, text: "쓰지 않는 오래된 가전제품들이 창고에 쌓여있다.", options: [ { text: "그냥 몰래 뒷산에 버린다", stats: { hap: 0, eco: -40, med: 0, money: 0 } }, { text: "자원순환센터에 무료 수거를 신청한다", stats: { hap: 10, eco: 25, med: 0, money: 0 } } ] }
+        ];
+
+        // --- CANVAS RENDERER ---
+        const cityScene=new Image();cityScene.src='assets/generated/city.png';
+        const GameCanvas = ({ gameState, stats, profile, onMinigameEnd, timeStop, history }) => {
+            const canvasRef = useRef(null);
+            const requestRef = useRef();
+            
+            // Engine State
+            const engine = useRef({
+                scrollX: 0,
+                playerY: 0,
+                velocityY: 0,
+                isJumping: false,
+                items: [], // {x, y, type, active}
+                score: 0,
+                ecoDelta: 0,
+                cameraPanX: 0 // For cinematic ending
+            });
+
+            // Age & Environment Derivations
+            const ratio = useMemo(() => Math.min(stats.age / Math.max(stats.lifespan, 1), 1), [stats.age, stats.lifespan]);
+            const ageStage = useMemo(() => {
+                if (gameState === 'END') return 'ghost';
+                if (stats.age <= 3) return 'baby';
+                if (stats.age <= 13) return 'child';
+                if (stats.age <= 19) return 'teen';
+                if (stats.age <= 45) return 'adult';
+                return 'senior';
+            }, [stats.age, gameState]);
+
+            const jump = useCallback(() => {
+                if (gameState === 'MINIGAME' && !engine.current.isJumping) {
+                    engine.current.velocityY = -16;
+                    engine.current.isJumping = true;
+                }
+            }, [gameState]);
+
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); jump(); }
+                };
+                window.addEventListener('keydown', handleKeyDown);
+                return () => window.removeEventListener('keydown', handleKeyDown);
+            }, [jump]);
+
+            // Minigame Timer
+            const [timeLeft, setTimeLeft] = useState(0);
+            useEffect(() => {
+                if (gameState === 'MINIGAME') {
+                    setTimeLeft(timeStop ? 20 : 10);
+                    engine.current.score = 0;
+                    engine.current.ecoDelta = 0;
+                    engine.current.items = [];
+                    
+                    const timer = setInterval(() => {
+                        setTimeLeft(prev => {
+                            if (prev <= 1) {
+                                clearInterval(timer);
+                                onMinigameEnd(engine.current.score, engine.current.ecoDelta);
+                                return 0;
+                            }
+                            return prev - 1;
+                        });
+                    }, 1000);
+                    return () => clearInterval(timer);
+                }
+            }, [gameState, timeStop, onMinigameEnd]);
+
+            // Drawing Loop
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                
+                let lastTime = performance.now();
+
+                const render = (time) => {
+                    // Responsive sizing
+                    canvas.width = canvas.clientWidth;
+                    canvas.height = canvas.clientHeight;
+                    
+                    const W = canvas.width;
+                    const H = canvas.height;
+                    const dt = time - lastTime;
+                    lastTime = time;
+
+                    // Update physics & scrolling
+                    let speed = 0;
+                    if (gameState === 'PLAY' || gameState === 'MINIGAME' || gameState === 'SETUP') {
+                        speed = (W * 0.0005) * dt; // Walk speed
+                    } else if (gameState === 'END') {
+                        speed = -(W * 0.001) * dt; // Pan backwards
+                    }
+                    engine.current.scrollX = (engine.current.scrollX + speed) % W;
+                    engine.current.cameraPanX += speed;
+
+                    // Minigame Logic
+                    if (gameState === 'MINIGAME') {
+                        engine.current.velocityY += 0.8; // Gravity
+                        engine.current.playerY += engine.current.velocityY;
+                        if (engine.current.playerY >= 0) {
+                            engine.current.playerY = 0;
+                            engine.current.velocityY = 0;
+                            engine.current.isJumping = false;
+                        }
+
+                        // Spawn items
+                        if (Math.random() < (timeStop ? 0.04 : 0.06)) {
+                            const r = Math.random();
+                            engine.current.items.push({
+                                x: W + 50,
+                                y: H * 0.75 - (Math.random() * H * 0.4 + 40), // Height range
+                                type: r > 0.8 ? 'trash' : r > 0.5 ? 'leaf' : 'coin',
+                                speed: Math.random() * 3 + 5,
+                                active: true
+                            });
+                        }
+                    } else {
+                        engine.current.playerY = 0; // Ground character
+                    }
+
+                    // --- DRAWING ---
+
+                    // 1. Sky Background (Dynamic Interpolation)
+                    const g = ctx.createLinearGradient(0, 0, 0, H * 0.6);
+                    if (ratio < 0.3) { g.addColorStop(0, '#87CEEB'); g.addColorStop(1, '#E0F6FF'); } // Morning
+                    else if (ratio < 0.6) { g.addColorStop(0, '#FF8C00'); g.addColorStop(1, '#FFD700'); } // Sunset
+                    else if (ratio < 0.8) { g.addColorStop(0, '#4B0082'); g.addColorStop(1, '#8A2BE2'); } // Twilight
+                    else { g.addColorStop(0, '#000011'); g.addColorStop(1, '#000033'); } // Night
+                    ctx.fillStyle = g;
+                    ctx.fillRect(0, 0, W, H);
+
+                    // Stars for night/end
+                    if (ratio >= 0.8 || gameState === 'END') {
+                        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                        for(let i=0; i<50; i++) {
+                            const sx = (Math.sin(i*100) * 1000 + engine.current.cameraPanX * 0.1) % W;
+                            const sy = Math.cos(i*50) * H * 0.5;
+                            const finalX = sx < 0 ? sx + W : sx;
+                            ctx.fillRect(finalX, sy > 0 ? sy : sy + H*0.5, 2, 2);
+                        }
+                    }
+
+                    // Sun/Moon
+                    const celY = H * 0.1 + (ratio * H * 0.4);
+                    const celX = W * 0.8;
+                    ctx.beginPath();
+                    ctx.arc(celX, celY, H * 0.08, 0, Math.PI * 2);
+                    ctx.fillStyle = ratio < 0.6 ? '#FFD700' : '#E0E0E0';
+                    ctx.shadowBlur = 30;
+                    ctx.shadowColor = ctx.fillStyle;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+
+                    const eco=stats.eco;
+if(cityScene.complete&&cityScene.naturalWidth){const th=H*.6,tw=th*1024/768,offset=(engine.current.cameraPanX*.2)%tw;ctx.save();for(let x=-offset;x<W;x+=tw){ctx.globalAlpha=1;ctx.drawImage(cityScene,0,0,1024,768,x,0,tw,th);ctx.globalAlpha=Math.max(0,Math.min(1,eco/100));ctx.drawImage(cityScene,1024,0,1024,768,x,0,tw,th);}ctx.restore();}else{// 2. Parallax Mountains/Cityscape
+                    
+                    const layer1Color = eco > 70 ? '#2d6a4f' : eco > 40 ? '#495057' : '#343a40';
+                    const layer2Color = eco > 70 ? '#1b4332' : eco > 40 ? '#343a40' : '#212529';
+                    
+                    ctx.fillStyle = layer1Color;
+                    for (let i = -1; i <= Math.ceil(W / 300); i++) {
+                        const x = (i * 300) - (engine.current.cameraPanX * 0.2) % 300;
+                        ctx.beginPath(); ctx.moveTo(x, H * 0.6); ctx.lineTo(x + 150, H * 0.4); ctx.lineTo(x + 300, H * 0.6); ctx.fill();
+                    }
+
+                    // 3. Midground: Trees & Buildings (Depends on Eco)
+                    for (let i = -1; i <= Math.ceil(W / 200); i++) {
+                        const x = (i * 200) - (engine.current.cameraPanX * 0.5) % 200;
+                        if (eco > 70) {
+                            // Lush Trees
+                            ctx.fillStyle = '#8B4513'; ctx.fillRect(x + 80, H * 0.5, 20, H * 0.1);
+                            ctx.fillStyle = '#40916c'; ctx.beginPath(); ctx.arc(x + 90, H * 0.45, 40, 0, Math.PI*2); ctx.fill();
+                        } else if (eco > 40) {
+                            // Standard Buildings
+                            ctx.fillStyle = layer2Color; ctx.fillRect(x + 50, H * 0.35, 100, H * 0.25);
+                            ctx.fillStyle = '#f8f9fa'; ctx.fillRect(x + 70, H * 0.4, 20, 20); ctx.fillRect(x + 110, H * 0.4, 20, 20);
+                        } else {
+                            // Factories & Smog
+                            ctx.fillStyle = layer2Color; ctx.fillRect(x + 50, H * 0.4, 80, H * 0.2);
+                            ctx.fillRect(x + 70, H * 0.2, 20, H * 0.2); // Chimney
+                            // Smoke
+                            ctx.fillStyle = 'rgba(100,100,100,0.5)';
+                            ctx.beginPath(); ctx.arc(x + 80 + (time*0.02)%50, H * 0.15, 30, 0, Math.PI*2); ctx.fill();
+                        }
+                    }
+
+                    }
+// 4. The Street (Sidewalk & Road)
+                    const sidewalkY = H * 0.6;
+                    const roadY = H * 0.8;
+                    
+                    // Sidewalk
+                    ctx.fillStyle = eco < 40 ? '#6c757d' : '#adb5bd'; // darker if polluted
+                    ctx.fillRect(0, sidewalkY, W, H * 0.2);
+                    // Pavement blocks
+                    ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+                    ctx.lineWidth = 2;
+                    for (let i = -1; i <= Math.ceil(W / 100); i++) {
+                        const x = (i * 100) - (engine.current.cameraPanX * 1) % 100;
+                        ctx.beginPath(); ctx.moveTo(x, sidewalkY); ctx.lineTo(x - 50, roadY); ctx.stroke();
+                    }
+
+                    // Road
+                    ctx.fillStyle = '#343a40';
+                    ctx.fillRect(0, roadY, W, H * 0.2);
+                    // Lane markings
+                    ctx.fillStyle = '#ffc107';
+                    for (let i = -1; i <= Math.ceil(W / 150); i++) {
+                        const x = (i * 150) - (engine.current.cameraPanX * 1.5) % 150;
+                        ctx.fillRect(x, roadY + (H * 0.1) - 5, 80, 10);
+                    }
+
+                    // Trash on sidewalk if low eco
+                    if (eco < 40) {
+                        ctx.fillStyle = '#000';
+                        for(let i=0; i<5; i++) {
+                            const tx = (i * 300 + 100 - engine.current.cameraPanX * 1) % W;
+                            const finalTx = tx < 0 ? tx + W : tx;
+                            ctx.fillRect(finalTx, roadY - 15, 10, 10);
+                            ctx.fillRect(finalTx+15, roadY - 20, 15, 10);
+                        }
+                    }
+
+                    // Smog overlay
+                    if (eco < 40) {
+                        ctx.fillStyle = 'rgba(100,100,100,0.2)';
+                        ctx.fillRect(0, 0, W, H);
+                    }
+
+                    // 5. Minigame Items
+                    if (gameState === 'MINIGAME') {
+                        const playerX = W * 0.2;
+                        const charH = H * 0.15;
+                        const playerRect = { x: playerX, y: roadY - charH + engine.current.playerY, w: charH*0.6, h: charH };
+
+                        engine.current.items.forEach(item => {
+                            if (!item.active) return;
+                            item.x -= item.speed;
+
+                            // Draw item
+                            ctx.font = `${Math.floor(H*0.06)}px Arial`;
+                            const icon = item.type === 'coin' ? '💰' : item.type === 'leaf' ? '🌿' : '🗑️';
+                            ctx.fillText(icon, item.x, item.y);
+
+                            // Collision
+                            if (item.x < playerRect.x + playerRect.w && item.x + H*0.06 > playerRect.x &&
+                                item.y - H*0.06 < playerRect.y + playerRect.h && item.y > playerRect.y) {
+                                item.active = false;
+                                if (item.type === 'coin') engine.current.score += (timeStop ? 200 : 100);
+                                else if (item.type === 'leaf') engine.current.ecoDelta += 2;
+                                else { engine.current.score = Math.max(0, engine.current.score - 50); engine.current.ecoDelta -= 3; }
+                            }
+                        });
+                    }
+
+                    // 6. Character Drawing
+                    // Position
+                    let charX = W * 0.2; 
+                    if (gameState === 'END') {
+                        // In end state, character is stationary on the left, looking back?
+                        charX = W * 0.2;
+                    }
+
+                    const charBaseY = roadY;
+                    const charH = H * 0.15;
+                    const charW = charH * 0.6;
+                    const cY = charBaseY - charH + engine.current.playerY;
+
+                    // Bobbing animation
+                    const isWalking = (gameState === 'PLAY' || gameState === 'SETUP') && speed !== 0;
+                    const bob = isWalking ? Math.sin(time * 0.01) * 5 : 0;
+                    const legBob = isWalking ? Math.sin(time * 0.015) * 15 : 0;
+
+                    // Colors
+                    const skin = "#fcdbb6";
+                    const shirt = profile.gender === 'Male' ? '#4a90e2' : profile.gender === 'Female' ? '#e24a80' : '#9b59b6';
+                    const pants = '#333';
+                    const hair = profile.gender === 'Male' ? '#222' : profile.gender === 'Female' ? '#8a3a3a' : '#d4ac0d';
+
+                    ctx.save();
+                    
+                    if (ageStage === 'ghost') {
+                        ctx.globalAlpha = 0.6;
+                        ctx.fillStyle = '#fff';
+                        ctx.beginPath();
+                        ctx.arc(charX + charW/2, cY + charH/2 + Math.sin(time*0.005)*10, charW/2, Math.PI, 0);
+                        ctx.lineTo(charX + charW, cY + charH + Math.sin(time*0.005)*10);
+                        ctx.lineTo(charX, cY + charH + Math.sin(time*0.005)*10);
+                        ctx.fill();
+                        ctx.fillStyle = '#000'; // Eyes
+                        ctx.fillRect(charX + charW*0.6, cY + charH*0.4 + Math.sin(time*0.005)*10, charW*0.1, charH*0.1);
+                    } else if (ageStage === 'baby') {
+                        // Crawling
+                        ctx.fillStyle = shirt; ctx.fillRect(charX, cY + charH*0.6, charW, charH*0.4); // Body horizontal
+                        ctx.fillStyle = skin; ctx.fillRect(charX + charW*0.8, cY + charH*0.5, charW*0.6, charH*0.5); // Head
+                        ctx.fillStyle = hair; ctx.fillRect(charX + charW*0.8, cY + charH*0.5, charW*0.6, charH*0.1);
+                        ctx.fillStyle = '#000'; ctx.fillRect(charX + charW*1.2, cY + charH*0.6, charW*0.1, charH*0.1); // Eye
+                    } else {
+                        // Standing/Walking
+                        // Back Leg
+                        ctx.translate(charX + charW/2, cY + charH*0.6); ctx.rotate(-legBob * Math.PI/180);
+                        ctx.fillStyle = pants; ctx.fillRect(-charW*0.2, 0, charW*0.4, charH*0.4);
+                        ctx.setTransform(1,0,0,1,0,0);
+                        
+                        // Front Leg
+                        ctx.translate(charX + charW/2, cY + charH*0.6); ctx.rotate(legBob * Math.PI/180);
+                        ctx.fillStyle = pants; ctx.fillRect(-charW*0.2, 0, charW*0.4, charH*0.4);
+                        ctx.setTransform(1,0,0,1,0,0);
+
+                        // Body
+                        ctx.fillStyle = shirt; ctx.fillRect(charX, cY + bob + charH*0.3, charW, charH*0.4);
+                        
+                        // Head
+                        ctx.fillStyle = skin; ctx.fillRect(charX + charW*0.1, cY + bob, charW*0.8, charH*0.3);
+                        
+                        // Hair
+                        ctx.fillStyle = ageStage === 'senior' ? '#ccc' : hair;
+                        if (profile.gender === 'Female') {
+                            ctx.fillRect(charX, cY + bob - charH*0.1, charW, charH*0.4);
+                        } else {
+                            ctx.fillRect(charX + charW*0.1, cY + bob - charH*0.1, charW*0.8, charH*0.2);
+                        }
+                        
+                        // Eye (Side profile)
+                        ctx.fillStyle = '#000'; ctx.fillRect(charX + charW*0.6, cY + bob + charH*0.1, charW*0.15, charH*0.1);
+
+                        // Props
+                        if (ageStage === 'senior') {
+                            ctx.fillStyle = '#8B4513'; ctx.fillRect(charX + charW*0.8, cY + bob + charH*0.4, charW*0.1, charH*0.6); // Cane
+                        }
+                    }
+                    ctx.restore();
+
+                    // --- MINIGAME UI OVERLAY ---
+                    if (gameState === 'MINIGAME') {
+                        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                        ctx.fillRect(W/2 - 100, 20, 200, 50);
+                        ctx.fillStyle = '#fff';
+                        ctx.font = '20px sans-serif';
+                        ctx.fillText(`⏰ ${timeLeft}s   💰 ${engine.current.score}`, W/2 - 80, 52);
+                        
+                        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+                        ctx.font = '16px sans-serif';
+                        ctx.fillText("터치/스페이스바로 점프! (💰돈 🌿환경 🗑️페널티)", W/2 - 170, 90);
+                    }
+
+                    requestRef.current = requestAnimationFrame(render);
+                };
+
+                requestRef.current = requestAnimationFrame(render);
+                return () => cancelAnimationFrame(requestRef.current);
+            }, [gameState, stats.eco, ageStage, profile.gender, ratio, timeLeft, timeStop, onMinigameEnd]);
+
+            return (
+                <div className="absolute inset-0 z-0 pointer-events-none" onClick={jump} style={{ pointerEvents: gameState === 'MINIGAME' ? 'auto' : 'none' }}>
+                    <canvas ref={canvasRef} className="w-full h-full block" />
+                </div>
+            );
+        };
+
+        // --- MAIN APP COMPONENT ---
+        const App = () => {
+            const [gameState, setGameState] = useState('SETUP'); // SETUP, PLAY, MINIGAME, SHOP, END
+            
+            const [profile, setProfile] = useState({ name: '김응애', gender: 'Male', env: '🏢 대도시' });
+            const [stats, setStats] = useState({ age: 0, lifespan: 82, eco: 50, med: 50, money: 0, hap: 50 });
+            const [qIndex, setQIndex] = useState(0); window.ecoLife={stats,gameState,qIndex,question:QUESTIONS[qIndex]};
+            const [history, setHistory] = useState([]);
+            
+            const [inventory, setInventory] = useState({ timeMachine: 0, invisibility: 0, timeStop: 0, elixir: 0 });
+            const [activeEffects, setActiveEffects] = useState({ mindReader: false, timeStop: false });
+            
+            // Custom Toast
+            const [toasts, setToasts] = useState([]);
+            const showToast = (msg) => {
+                const id = Date.now();
+                setToasts(prev => [...prev, { id, msg }]);
+                setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
+            };
+
+            const initGame = () => {
+ EcoFX.notify("start","새 삶 시작. 선택 뒤 환경·행복·자금 변화를 함께 비교하세요.");
+                const envData = ENVIRONMENTS[profile.env];
+                setStats({
+                    age: 0,
+                    lifespan: envData.baseLifespan,
+                    eco: envData.eco,
+                    med: envData.med,
+                    money: 1000, 
+                    hap: 80
+                });
+                setQIndex(0);
+                setHistory([]);
+                setInventory({ timeMachine: 0, invisibility: 0, timeStop: 0, elixir: 0 });
+                setActiveEffects({ mindReader: false, timeStop: false });
+                setGameState('PLAY');
+            };
+
+            const checkEndGame = (currentStats, nextQIndex) => {
+                if (currentStats.age >= currentStats.lifespan || nextQIndex >= QUESTIONS.length) {
+                    setTimeout(() => setGameState('END'), 1500);
+                }
+            };
+
+            const handleOption = (option, questionText) => {
+                const s = option.stats;
+                const q = QUESTIONS[qIndex];
+                
+                let newStats = {
+                    ...stats,
+                    age: stats.age + q.ageAdd,
+                    eco: Math.max(0, Math.min(100, stats.eco + s.eco)),
+                    med: Math.max(0, Math.min(100, stats.med + s.med)),
+                    hap: Math.max(0, Math.min(100, stats.hap + s.hap)),
+                    money: stats.money + s.money
+                };
+                
+                if (newStats.eco < 30 && Math.random() > 0.5) { newStats.lifespan -= 1; showToast("🌍 게임 내 환경 위험 판정: 기대 수명 지표 -1"); }
+                if (newStats.med < 30 && Math.random() > 0.5) { newStats.lifespan -= 2; showToast("🏥 의료 부족으로 수명이 2년 줄었습니다."); }
+
+                setStats(newStats); EcoFX.notify(s.eco>=0?'good':'bad',`선택 결과: 환경 ${newStats.eco-stats.eco>=0?'+':''}${newStats.eco-stats.eco}, 행복 ${newStats.hap-stats.hap>=0?'+':''}${newStats.hap-stats.hap}, 자금 ${s.money>=0?'+':''}${s.money}`);
+                setHistory([...history, { age: stats.age, question: questionText, choice: option.text }]);
+                
+                setActiveEffects(prev => ({ ...prev, mindReader: false }));
+                const nextQ = qIndex + 1;
+                setQIndex(nextQ);
+                checkEndGame(newStats, nextQ);
+            };
+
+            const buyItem = (item) => {
+                if (stats.money >= item.cost) {
+                    setStats(prev => ({ ...prev, money: prev.money - item.cost }));
+                    setInventory(prev => ({ ...prev, [item.id]: prev[item.id] + 1 }));
+                    showToast(`🛍️ ${item.name} 구매 완료!`);
+                } else {
+                    showToast("❌ 돈이 부족합니다!");
+                }
+            };
+
+            const useItem = (id) => {
+                if (inventory[id] <= 0) return;
+                
+                if (id === 'timeMachine') {
+                    if (history.length === 0) return showToast("❌ 돌아갈 과거가 없습니다.");
+                    setInventory(prev => ({ ...prev, [id]: prev[id] - 1 }));
+                    const last = history[history.length - 1];
+                    setStats(prev => ({ ...prev, age: last.age }));
+                    setHistory(history.slice(0, -1));
+                    setQIndex(prev => Math.max(0, prev - 1));
+                    showToast("⏳ 시간을 되돌렸습니다.");
+                } 
+                else if (id === 'invisibility') {
+                    setInventory(prev => ({ ...prev, [id]: prev[id] - 1 }));
+                    const q = QUESTIONS[qIndex];
+                    setHistory([...history, { age: stats.age, question: q.text, choice: "[투명망토 사용: 위기 모면]" }]);
+                    const nextStats = { ...stats, age: stats.age + q.ageAdd };
+                    setStats(nextStats);
+                    setQIndex(qIndex + 1);
+                    showToast("👻 상황을 몰래 넘겼습니다.");
+                    checkEndGame(nextStats, qIndex + 1);
+                }
+                else if (id === 'timeStop') {
+                    if (gameState === 'MINIGAME') return showToast("❌ 시작 전에 사용하세요.");
+                    setInventory(prev => ({ ...prev, [id]: prev[id] - 1 }));
+                    setActiveEffects(prev => ({ ...prev, timeStop: true }));
+                    showToast("⏱️ 다음 미니게임 보상 2배!");
+                }
+                else if (id === 'elixir') {
+                    setInventory(prev => ({ ...prev, [id]: prev[id] - 1 }));
+                    setStats(prev => ({ ...prev, lifespan: prev.lifespan + 5 }));
+                    showToast("💊 수명이 5년 늘어났습니다!");
+                }
+            };
+
+            return (
+                <div id="game-container">
+                    
+                    {/* TOAST NOTIFICATIONS */}
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 pointer-events-none">
+                        {toasts.map(t => (
+                            <div key={t.id} className="bg-black/80 border-2 border-white text-white px-4 py-2 rounded-full font-bold shadow-lg animate-fade-up text-sm">
+                                {t.msg}
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* TOP VIEWPORT (70% or 100%) */}
+                    <div className={`relative w-full transition-all duration-1000 ease-in-out ${gameState === 'END' ? 'h-full' : 'h-[70%] border-b-4 border-gray-800'}`}>
+                        
+                        {/* CANVAS ENGINE */}
+                        <GameCanvas 
+                            gameState={gameState} 
+                            stats={stats} 
+                            profile={profile} 
+                            timeStop={activeEffects.timeStop}
+                            history={history}
+                            onMinigameEnd={(earned, ecoDelt) => {
+                                setStats(prev => ({ ...prev, money: prev.money + earned, eco: Math.max(0, Math.min(100, prev.eco + ecoDelt)) }));
+                                setActiveEffects(prev => ({ ...prev, timeStop: false }));
+                                setGameState('PLAY');
+                                showToast(`미니게임 종료: 💰 +${earned} | 🌿 ${ecoDelt >= 0 ? '+'+ecoDelt : ecoDelt}`);
+                            }}
+                        />
+
+                        {/* UI OVERLAYS (Hidden in END) */}
+                        {gameState !== 'END' && gameState !== 'SETUP' && (
+                            <>
+                                {/* TOP LEFT: STATS */}
+                                <div className="absolute top-4 left-4 z-20 flex flex-col gap-2">
+                                    <div className="bg-white/95 text-black border-2 border-black px-3 py-1 rounded shadow-md flex items-center gap-2 font-bold text-sm">
+                                        <span>{profile.name} ({stats.age}세)</span>
+                                        <span className="text-gray-500 text-xs">수명 {stats.lifespan}</span>
+                                    </div>
+                                    <div className="bg-white/95 text-black border-2 border-black px-3 py-1 rounded shadow-md flex gap-3 font-bold text-xs">
+                                        <span className="text-green-600">🌿 {stats.eco}%</span>
+                                        <span className="text-blue-600">🏥 {stats.med}%</span>
+                                        <span className="text-yellow-600">💰 ${stats.money.toLocaleString()}</span>
+                                        <span className="text-red-500">❤️ {stats.hap}%</span>
+                                    </div>
+                                </div>
+
+                                {/* TOP RIGHT: BUTTONS */}
+                                <div className="absolute top-4 right-4 z-20 flex gap-2">
+                                    {(gameState === 'PLAY' || gameState === 'SHOP') && (
+                                        <>
+                                            <button onClick={() => setGameState('SHOP')} className="w-10 h-10 bg-purple-400 border-2 border-black rounded flex items-center justify-center text-lg shadow-md hover:-translate-y-1 transition-transform">🛍️</button>
+                                            <button onClick={() => setGameState('MINIGAME')} className="w-10 h-10 bg-green-400 border-2 border-black rounded flex items-center justify-center text-lg shadow-md hover:-translate-y-1 transition-transform">💰</button>
+                                            
+                                            {/* Inventory Hover */}
+                                            <div className="group relative">
+                                                <div className="w-10 h-10 bg-yellow-400 border-2 border-black rounded flex items-center justify-center text-lg shadow-md cursor-help">🎒</div>
+                                                <div className="absolute right-0 mt-2 w-48 bg-white border-2 border-black rounded p-2 hidden group-hover:flex flex-col gap-1 shadow-lg z-50">
+                                                    <div className="text-[10px] font-black border-b border-gray-200 pb-1 mb-1 text-black">가방 (클릭해 사용)</div>
+                                                    {Object.entries(inventory).map(([key, count]) => count > 0 && (
+                                                        <button key={key} onClick={() => useItem(key)} className="flex items-center justify-between bg-gray-100 hover:bg-gray-200 p-1 rounded border border-black text-xs font-bold text-black">
+                                                            <span>{ITEMS.find(i=>i.id===key).icon} {ITEMS.find(i=>i.id===key).name}</span>
+                                                            <span className="bg-black text-white px-1 rounded">x{count}</span>
+                                                        </button>
+                                                    ))}
+                                                    {Object.values(inventory).every(v => v === 0) && <div className="text-gray-400 text-xs font-bold text-center py-1">텅 빔</div>}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </>
+                        )}
+
+                        {/* SHOP MODAL */}
+                        {gameState === 'SHOP' && (
+                            <div className="absolute inset-0 bg-black/60 z-30 flex items-center justify-center p-4">
+                                <div className="bg-white text-black p-4 rounded-xl border-4 border-black w-full max-w-lg shadow-2xl animate-fade-up">
+                                    <div className="flex justify-between items-center mb-4 border-b-2 border-black pb-2">
+                                        <h2 className="text-xl font-black">🔮 초능력 상점</h2>
+                                        <button onClick={() => setGameState('PLAY')} className="bg-red-500 text-white px-2 py-1 rounded font-bold border-2 border-black">닫기 ✕</button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {ITEMS.map(item => (
+                                            <div key={item.id} className="border-2 border-black rounded p-2 flex flex-col justify-between bg-gray-50">
+                                                <div>
+                                                    <div className="font-black text-sm mb-1">{item.icon} {item.name}</div>
+                                                    <div className="text-[10px] text-gray-600 font-bold leading-tight">{item.desc}</div>
+                                                </div>
+                                                <div className="flex justify-between items-center mt-2">
+                                                    <span className="text-green-700 font-black text-xs">💰 {item.cost}</span>
+                                                    <button onClick={() => buyItem(item)} className="bg-yellow-300 border border-black font-bold px-2 py-1 rounded text-xs hover:bg-yellow-400">구매</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* CINEMATIC ENDING PANORAMA OVERLAY */}
+                        {gameState === 'END' && (
+                            <div className="absolute inset-0 z-40 overflow-x-auto overflow-y-hidden custom-scrollbar flex items-center pt-20 px-[40vw] space-x-12 scroll-smooth">
+                                {/* Auto-scroll to left script could be added, but manual scroll lets user reflect */}
+                                {history.map((h, i) => (
+                                    <div key={i} className="shrink-0 w-64 bg-white/90 backdrop-blur border-2 border-black p-4 rounded-xl shadow-xl flex flex-col gap-2">
+                                        <div className="text-center border-b border-gray-300 pb-2">
+                                            <span className="text-black font-black text-sm">{h.age}세</span>
+                                        </div>
+                                        <p className="font-bold text-xs text-gray-800 leading-tight h-10 overflow-hidden">{h.question}</p>
+                                        <div className="bg-blue-100 p-2 rounded border border-blue-300 font-bold text-blue-900 text-xs text-center">
+                                            "{h.choice}"
+                                        </div>
+                                    </div>
+                                ))}
+                                
+                                {/* Final Tombstone */}
+                                <div className="shrink-0 w-80 bg-gray-900 text-white border-4 border-gray-700 p-6 rounded-t-full rounded-b-xl shadow-2xl flex flex-col items-center text-center ml-24 relative">
+                                    <h2 className="text-2xl font-black mb-2 mt-4">{stats.age}세 사망</h2>
+                                    <div className="w-full h-px bg-gray-700 my-3" />
+                                    <p className="font-bold text-gray-300 italic text-sm mb-4">
+                                        {stats.eco < 30 ? '"매연 가득한 하늘을 뒤로하고 눈을 감다."' : 
+                                         stats.eco >= 70 ? '"지구를 조금 더 푸르게 만들고 자연의 품으로 돌아가다."' :
+                                         '"평범하지만 치열했던, 한 편의 파노라마."'}
+                                    </p>
+                                    <div className="grid grid-cols-2 gap-2 w-full text-xs font-bold mb-6">
+                                        <div className="bg-gray-800 p-2 rounded">자연 {stats.eco}점</div>
+                                        <div className="bg-gray-800 p-2 rounded">행복 {stats.hap}점</div>
+                                        <div className="bg-gray-800 p-2 rounded">자산 ${stats.money}</div>
+                                        <div className="bg-gray-800 p-2 rounded">건강 {stats.med}점</div>
+                                    </div>
+                                    <button onClick={initGame} className="w-full py-2 bg-red-600 hover:bg-red-500 font-black text-lg border-2 border-black rounded-lg">다시 태어나기 ↺</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* BOTTOM PANEL (30%) */}
+                    <div className={`w-full bg-[#f4f1ea] transition-all duration-1000 ease-in-out relative flex items-center justify-center
+                        ${gameState === 'END' ? 'h-0 opacity-0' : 'h-[30%] opacity-100'}
+                    `}>
+                        {gameState === 'SETUP' && (
+                            <div className="flex gap-4 items-center bg-white p-4 rounded-xl border-4 border-black shadow-lg">
+                                <input type="text" value={profile.name} onChange={e => setProfile({...profile, name: e.target.value})} className="border-2 border-black p-2 rounded font-bold w-24 text-black text-sm" placeholder="이름" />
+                                <select value={profile.gender} onChange={e => setProfile({...profile, gender: e.target.value})} className="border-2 border-black p-2 rounded font-bold text-black text-sm">
+                                    <option value="Male">👦 남</option><option value="Female">👧 여</option><option value="Non-binary">🧑 중성</option>
+                                </select>
+                                <select value={profile.env} onChange={e => setProfile({...profile, env: e.target.value})} className="border-2 border-black p-2 rounded font-bold text-black text-sm">
+                                    {Object.keys(ENVIRONMENTS).map(e => <option key={e} value={e}>{e}</option>)}
+                                </select>
+                                <button onClick={initGame} className="px-6 py-2 bg-blue-600 text-white font-black text-lg border-2 border-black rounded shadow-[2px_2px_0_0_#000] hover:translate-y-px">시작</button>
+                            </div>
+                        )}
+
+                        {gameState === 'PLAY' && QUESTIONS[qIndex] && (
+                            <div className="w-full max-w-4xl mx-auto px-6 flex flex-col gap-2 animate-fade-up">
+                                <h3 className="text-base md:text-lg font-black text-gray-900 border-l-4 border-black pl-2 leading-tight">
+                                    {QUESTIONS[qIndex].text}
+                                </h3>
+                                <div className="flex flex-row gap-2 overflow-x-auto py-1 custom-scrollbar">
+                                    {QUESTIONS[qIndex].options.map((opt, i) => (
+                                        <button 
+                                            key={i}
+                                            onClick={() => handleOption(opt, QUESTIONS[qIndex].text)}
+                                            className="flex-1 min-w-[140px] text-left p-2 rounded-lg border-2 border-black font-bold text-xs md:text-sm bg-white text-black hover:bg-gray-100 shadow-[2px_2px_0_0_#000] hover:translate-y-px transition-transform whitespace-normal"
+                                        >
+                                            {opt.text}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        
+                        {gameState === 'MINIGAME' && (
+                            <div className="text-center font-black text-gray-800 text-lg animate-fade-up">
+                                미니게임 진행 중... (화면 클릭/스페이스바로 점프!)
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+<script>
+EcoFX.mount({title:"삶의 선택과 환경",goal:"선택마다 달라지는 환경·행복·자금을 비교하고 다른 삶을 시도하세요.",note:"환경·수명·행복 수치는 이야기용 가상 규칙이며 개인의 실제 수명이나 건강을 예측하지 않습니다.",read:()=>({label:'환경 '+(window.ecoLife?.stats.eco??50)+' · 기록',progress:window.ecoLife?.stats.eco??50,detail:'환경 '+(window.ecoLife?.stats.eco??50)+' / 행복 '+(window.ecoLife?.stats.hap??50)+' — 선택의 이득과 비용을 함께 확인하세요.'}),actions:[]});
+</script>
+</body>
+</html>

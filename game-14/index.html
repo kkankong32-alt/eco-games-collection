@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta name="referrer" content="no-referrer">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>체어맨 동진의 넷제로 대작전</title>
+    <link rel="stylesheet" href="vendor/tailwind.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@500;700;900&display=swap');
+
+        body {
+            background-color: #0d0e15;
+            color: #ffffff;
+            font-family: 'Noto Sans KR', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        .pixel-font {
+            font-family: 'Press Start 2P', monospace;
+        }
+
+        /* Game Canvas Container */
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, #1b1e2e 0%, #08090e 100%);
+        }
+
+        canvas {
+            border: 4px solid #3b4261;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8), 0 0 15px rgba(66, 153, 225, 0.3);
+            border-radius: 8px;
+            image-rendering: pixelated;
+        }
+
+        /* CRT Scanline Effect Overlay */
+        .scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%, 
+                rgba(0, 0, 0, 0.25) 50%
+            );
+            background-size: 100% 4px;
+            z-index: 10;
+        }
+
+        /* Modals & UI Cards */
+        .ui-modal {
+            background: rgba(15, 17, 26, 0.96);
+            border: 3px solid #565f89;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85);
+            border-radius: 12px;
+        }
+    </style>
+<style>.hidden { display: none !important; }</style>
+<script src="eco-feedback.js"></script>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="scanlines"></div>
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Start Screen Modal with Environmental Science Education -->
+    <div id="start-screen" class="absolute inset-0 flex flex-col items-center justify-center z-20 bg-slate-950/90 p-4 text-center overflow-y-auto">
+        <div class="ui-modal p-6 max-w-2xl w-full flex flex-col items-center border-emerald-500/60 my-auto shadow-2xl">
+            <!-- Header Badges -->
+            <div class="flex flex-wrap justify-center gap-2 mb-2">
+                <span class="text-[11px] text-emerald-400 font-bold tracking-widest px-3 py-1 bg-emerald-950/90 rounded-full border border-emerald-700/80">
+                    🌍 2050 NET-ZERO CLIMATE ACTION
+                </span>
+                <span class="text-[11px] text-cyan-300 font-bold tracking-widest px-3 py-1 bg-cyan-950/90 rounded-full border border-cyan-700/80">
+                    지하 1,000m CCUS 대수층 연구실
+                </span>
+            </div>
+
+            <h1 class="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-200 to-cyan-400 mb-1 drop-shadow-md">
+                체어맨 동진의 넷제로 대작전
+            </h1>
+            <p class="text-emerald-300/90 text-xs md:text-sm font-semibold mb-4">
+                "초임계 CO₂ 유출을 막아 지구 온난화를 저지하고 넷제로(Net-Zero)를 달성하라!"
+            </p>
+
+            <!-- Environmental Science Principles (CCUS Explanation Box) -->
+            <div class="bg-emerald-950/40 p-3.5 rounded-lg border border-emerald-600/50 w-full mb-4 text-left text-xs space-y-2 text-slate-200">
+                <div class="flex items-center text-emerald-300 font-bold text-sm border-b border-emerald-800/60 pb-1.5">
+                    <span>🔬 기후변화 대응 핵심 기술: CCUS란? (Carbon Capture, Utilization & Storage)</span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-2 text-[11px] pt-1">
+                    <div class="bg-slate-900/80 p-2 rounded border border-slate-700">
+                        <span class="text-emerald-400 font-bold">1. 초임계 CO₂ 괴물</span><br>
+                        산업 현장에서 배출된 이산화탄소를 포집해 지하 심층 대수층으로 주입한 가스체입니다.
+                    </div>
+                    <div class="bg-slate-900/80 p-2 rounded border border-slate-700">
+                        <span class="text-amber-300 font-bold">2. 체어맨 공격 = 광물 탄산화</span><br>
+                        <code class="text-[10px] text-teal-300">CO₂ + Ca²⁺ ➔ CaCO₃</code><br>
+                        괴물을 격퇴해 암석속 석회암으로 영구 봉인합니다.
+                    </div>
+                    <div class="bg-slate-900/80 p-2 rounded border border-slate-700">
+                        <span class="text-rose-400 font-bold">3. 공극 압력 방제 (P/P_max)</span><br>
+                        지하 압력이 100%가 되면 지층 파쇄로 탄소가 대기 중 재유출됩니다. 압력을 안정시키세요!
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls Overview -->
+            <div class="bg-slate-900/90 p-3 rounded-lg border border-slate-700 w-full mb-4 text-left text-xs space-y-1.5 text-slate-300">
+                <div class="flex justify-between items-center text-cyan-400 font-bold pb-1 border-b border-slate-800">
+                    <span>🎮 현장 수호자: 남동진 체어맨 (조작법)</span>
+                    <button id="open-science-btn" class="text-[11px] text-emerald-400 underline hover:text-emerald-300 transition-colors">
+                        [🔬 CCUS 과학 원리 자세히 보기]
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-[11px] pt-1">
+                    <div><span class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-amber-300 font-mono">WASD / 방향키</span> : 4방향 이동</div>
+                    <div><span class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-amber-300 font-mono">J / Spacebar</span> : 3x2 의자 광역 봉인 (쿨 0.4s)</div>
+                    <div><span class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-amber-300 font-mono">K / Shift</span> : 특수 충격파 밀쳐내기</div>
+                    <div><span class="px-1.5 py-0.5 bg-slate-800 border border-slate-600 rounded text-amber-300 font-mono">L</span> : 비상 공극 압력 감축 배출</div>
+                </div>
+            </div>
+
+            <!-- Start Action Button -->
+            <button id="start-btn" class="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-black text-lg rounded-lg shadow-lg shadow-emerald-950/60 transition-all duration-200 active:scale-95 animate-pulse">
+                지하 대수층 CO₂ 영구 봉인 작전 개시 (START GAME)
+            </button>
+        </div>
+    </div>
+
+    <!-- Climate Science Detail Modal -->
+    <div id="science-modal" class="hidden absolute inset-0 flex flex-col items-center justify-center z-40 bg-slate-950/95 p-4 text-center">
+        <div class="ui-modal p-6 max-w-xl w-full text-left border-cyan-500/60 bg-slate-950 text-xs leading-relaxed space-y-3">
+            <h3 class="text-xl font-black text-cyan-400 border-b border-slate-800 pb-2">
+                🌍 지구 온난화 방지와 CCUS 기술의 중요성
+            </h3>
+            <div class="text-slate-300 space-y-2 max-h-[60vh] overflow-y-auto pr-2">
+                <p>
+                    <strong class="text-emerald-400">1. 왜 지하 1,000m 대수층에 탄소를 가둘까요?</strong><br>
+                    지구 온난화를 막기 위해 공장 및 발전소에서 나오는 이산화탄소를 포집한 뒤, 깊은 지하 암석층(대수층/폐유전)에 가두는 **CCUS 기술**은 2050 넷제로 달성을 위한 필수 기후 기술입니다.
+                </p>
+                <p>
+                    <strong class="text-amber-300">2. 광물 탄산화 (Mineral Carbonation)</strong><br>
+                    게임 속 체어맨의 의자 공격은 지하 암석 속 칼슘($\text{Ca}^{2+}$) 및 마그네슘이 이산화탄소와 화학 반응을 일으켜 **탄산칼슘(돌, $\text{CaCO}_3$)**으로 변해 수천 년 동안 안전하게 영구 저장되는 원리를 상징합니다.
+                </p>
+                <p>
+                    <strong class="text-rose-400">3. 공극 압력 관리의 중요성</strong><br>
+                    탄소를 과도하게 주입하면 지하 압력이 상승하여 덮개암(Caprock)이 파열되고, 갇혀있던 탄소가 다시 대기로 유출되는 환경 재앙이 발생합니다. 남동진 체어맨은 이를 막기 위해 지속적으로 압력을 관리해야 합니다.
+                </p>
+            </div>
+            <button id="close-science-btn" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold rounded-lg border border-slate-600">
+                닫기 및 게임 시작 화면으로 돌아가기
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="game-over-screen" class="hidden absolute inset-0 flex flex-col items-center justify-center z-30 bg-rose-950/85 backdrop-blur-sm p-6 text-center">
+        <div class="ui-modal p-8 max-w-md w-full border-rose-600/60 bg-slate-950">
+            <h2 class="text-3xl font-black text-rose-500 mb-2">지층 파쇄 기후 위기 발생!</h2>
+            <p id="game-over-reason" class="text-slate-300 text-sm mb-6">초임계 탄소 괴물과 충돌했거나 지층 파쇄 압력이 100%에 도달해 CO₂가 유출되었습니다.</p>
+            
+            <div class="bg-slate-900 p-4 rounded-lg mb-6 text-left text-xs space-y-1 text-slate-400 border border-slate-800">
+                <div>광물화 봉인 탄소 괴물: <span id="final-kills" class="text-emerald-400 font-bold">0</span>개</div>
+                <div>최종 지하 공극 압력: <span id="final-pressure" class="text-rose-400 font-bold">0%</span></div>
+            </div>
+
+            <button id="restart-btn" class="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold text-base rounded-lg transition-all shadow-lg">
+                넷제로 재도전하기 (RETRY)
+            </button>
+        </div>
+    </div>
+
+    <!-- Victory Modal -->
+    <div id="victory-screen" class="hidden absolute inset-0 flex flex-col items-center justify-center z-30 bg-teal-950/85 backdrop-blur-sm p-6 text-center">
+        <div class="ui-modal p-8 max-w-md w-full border-teal-500/60 bg-slate-950">
+            <div class="text-xs text-emerald-400 font-bold mb-1">🌱 NET-ZERO MISSION ACCOMPLISHED</div>
+            <h2 class="text-3xl font-black text-teal-400 mb-2">대수층 완전 봉인 성공!</h2>
+            <p class="text-slate-300 text-sm mb-6">남동진 체어맨이 초임계 탄소 괴물을 모두 광물 탄산화로 고착시키고 지구 온난화를 막아냈습니다!</p>
+
+            <button id="victory-restart-btn" class="w-full py-3 bg-teal-600 hover:bg-teal-500 text-white font-bold text-base rounded-lg transition-all shadow-lg">
+                작전 재개하기 (REPLAY)
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+window.onload = function() {
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // UI Elements
+    const startScreen = document.getElementById('start-screen');
+    const startBtn = document.getElementById('start-btn');
+    const gameOverScreen = document.getElementById('game-over-screen');
+    const gameOverReason = document.getElementById('game-over-reason');
+    const restartBtn = document.getElementById('restart-btn');
+    const victoryScreen = document.getElementById('victory-screen');
+    const victoryRestartBtn = document.getElementById('victory-restart-btn');
+    const scienceModal = document.getElementById('science-modal');
+    const openScienceBtn = document.getElementById('open-science-btn');
+    const closeScienceBtn = document.getElementById('close-science-btn');
+
+    // Science modal toggles
+    openScienceBtn.addEventListener('click', () => scienceModal.classList.remove('hidden'));
+    closeScienceBtn.addEventListener('click', () => scienceModal.classList.add('hidden'));
+
+    // Canvas Resolution (Grid: 22 cols x 16 rows, Tile Size: 32px)
+    const TILE_SIZE = 32;
+    const COLS = 22;
+    const ROWS = 16;
+    canvas.width = COLS * TILE_SIZE;  // 704px
+    canvas.height = ROWS * TILE_SIZE; // 512px
+
+    // Game State Controls
+    let gameState = 'START'; // START, PLAYING, GAMEOVER, VICTORY
+    let lastTime = performance.now();
+    let killCount = 0;
+    let requiredKills = 25;
+    let pressure = 20.0; // P / P_max percentage
+    let emergencyVentingCd = 0;
+    let knockbackCd = 0;
+
+    // Keyboard Input Handling
+    const keys = {};
+    window.addEventListener('keydown', (e) => {
+        keys[e.key] = true;
+        if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+            e.preventDefault();
+        }
+    });
+    window.addEventListener('keyup', (e) => {
+        keys[e.key] = false;
+    });
+
+    // Lab Map Grid Layout (0: Floor, 1: Wall/Outer Border, 2: Lab Server Rack, 3: Glass Chamber)
+    const labMap = [
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+        [1,0,2,2,0,0,1,0,3,0,0,0,0,3,0,1,0,0,2,2,0,1],
+        [1,0,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,0,1],
+        [1,0,0,0,0,1,1,1,0,0,2,2,0,0,1,1,1,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,2,2,0,0,0,0,0,0,0,0,0,1],
+        [1,1,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,1,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,1,0,0,3,0,0,0,0,0,0,0,0,0,0,0,0,3,0,0,1,1],
+        [1,0,0,0,0,0,0,0,0,0,2,2,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,1,1,1,0,0,2,2,0,0,1,1,1,0,0,0,0,1],
+        [1,0,2,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,2,0,1],
+        [1,0,2,2,0,0,1,0,3,0,0,0,0,3,0,1,0,0,2,2,0,1],
+        [1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ];
+
+    function isSolidTile(gx, gy) {
+        if (gx < 0 || gx >= COLS || gy < 0 || gy >= ROWS) return true;
+        return labMap[gy][gx] !== 0;
+    }
+
+    // Player Object (Nam Dong-jin)
+    const player = {
+        gridX: 11,
+        gridY: 8,
+        pixelX: 11 * TILE_SIZE,
+        pixelY: 8 * TILE_SIZE,
+        targetGridX: 11,
+        targetGridY: 8,
+        facing: 'DOWN', // 'UP', 'DOWN', 'LEFT', 'RIGHT'
+        moveSpeed: 3.2,
+        isMoving: false,
+        attackCooldown: 0,
+        attackAnimTime: 0,
+        animFrame: 0,
+        animTimer: 0,
+
+        reset: function() {
+            this.gridX = 11;
+            this.gridY = 8;
+            this.pixelX = 11 * TILE_SIZE;
+            this.pixelY = 8 * TILE_SIZE;
+            this.targetGridX = 11;
+            this.targetGridY = 8;
+            this.facing = 'DOWN';
+            this.isMoving = false;
+            this.attackCooldown = 0;
+            this.attackAnimTime = 0;
+        },
+
+        update: function(dt) {
+            if (this.attackCooldown > 0) {
+                this.attackCooldown = Math.max(0, this.attackCooldown - dt);
+            }
+            if (this.attackAnimTime > 0) {
+                this.attackAnimTime = Math.max(0, this.attackAnimTime - dt);
+            }
+
+            // Grid Interpolation Movement
+            if (this.isMoving) {
+                const targetPixelX = this.targetGridX * TILE_SIZE;
+                const targetPixelY = this.targetGridY * TILE_SIZE;
+                const dx = targetPixelX - this.pixelX;
+                const dy = targetPixelY - this.pixelY;
+                const dist = Math.hypot(dx, dy);
+
+                const step = this.moveSpeed * TILE_SIZE * dt * 3.5;
+
+                if (dist <= step) {
+                    this.pixelX = targetPixelX;
+                    this.pixelY = targetPixelY;
+                    this.gridX = this.targetGridX;
+                    this.gridY = this.targetGridY;
+                    this.isMoving = false;
+                } else {
+                    this.pixelX += (dx / dist) * step;
+                    this.pixelY += (dy / dist) * step;
+                }
+
+                // Animation Walking Frame Toggle
+                this.animTimer += dt;
+                if (this.animTimer > 0.15) {
+                    this.animFrame = (this.animFrame + 1) % 7;
+                    this.animTimer = 0;
+                }
+            } else {
+                if(!['w','W','a','A','s','S','d','D','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].some(k=>keys[k])) this.animFrame = 0;
+
+                let reqX = 0;
+                let reqY = 0;
+
+                if (keys['w'] || keys['W'] || keys['ArrowUp']) { reqY = -1; this.facing = 'UP'; }
+                else if (keys['s'] || keys['S'] || keys['ArrowDown']) { reqY = 1; this.facing = 'DOWN'; }
+                else if (keys['a'] || keys['A'] || keys['ArrowLeft']) { reqX = -1; this.facing = 'LEFT'; }
+                else if (keys['d'] || keys['D'] || keys['ArrowRight']) { reqX = 1; this.facing = 'RIGHT'; }
+
+                if (reqX !== 0 || reqY !== 0) {
+                    const nextGx = this.gridX + reqX;
+                    const nextGy = this.gridY + reqY;
+
+                    if (!isSolidTile(nextGx, nextGy)) {
+                        this.targetGridX = nextGx;
+                        this.targetGridY = nextGy;
+                        this.isMoving = true;
+                    }
+                }
+            }
+
+            // Attack Trigger (J or Space)
+            if ((keys['j'] || keys['J'] || keys[' ']) && this.attackCooldown === 0) {
+                this.performChairmanAttack();
+            }
+
+            // Special Knockback (K or Shift)
+            if ((keys['k'] || keys['K'] || keys['Shift']) && knockbackCd <= 0) {
+                this.performKnockbackSkill();
+            }
+
+            // Emergency Venting (L)
+            if ((keys['l'] || keys['L']) && emergencyVentingCd <= 0) {
+                pressure = Math.max(0, pressure - 30);
+ EcoFX.notify("bad","긴급 배출 → 압력 완화. 봉인 실적은 늘지 않습니다. 저장과 배출을 구분하세요.");
+                emergencyVentingCd = 12.0;
+            }
+        },
+
+        performChairmanAttack: function() {
+            this.attackCooldown = 0.4;
+            this.attackAnimTime = 0.25;
+
+            const hitTiles = getChairman3x2Hitbox(this.gridX, this.gridY, this.facing);
+
+            enemies.forEach(enemy => {
+                const inHitbox = hitTiles.some(t => t.x === enemy.gridX && t.y === enemy.gridY);
+                if (inHitbox) {
+                    enemy.takeHit(1);
+                }
+            });
+        },
+
+        performKnockbackSkill: function() {
+            knockbackCd = 6.0;
+            this.attackAnimTime = 0.3;
+
+            enemies.forEach(enemy => {
+                let dx = 0, dy = 0;
+                if (this.facing === 'UP') dy = -3;
+                if (this.facing === 'DOWN') dy = 3;
+                if (this.facing === 'LEFT') dx = -3;
+                if (this.facing === 'RIGHT') dx = 3;
+
+                const targetGx = Math.max(1, Math.min(COLS - 2, enemy.gridX + dx));
+                const targetGy = Math.max(1, Math.min(ROWS - 2, enemy.gridY + dy));
+
+                if (!isSolidTile(targetGx, targetGy)) {
+                    enemy.gridX = targetGx;
+                    enemy.gridY = targetGy;
+                    enemy.pixelX = targetGx * TILE_SIZE;
+                    enemy.pixelY = targetGy * TILE_SIZE;
+                    enemy.targetGridX = targetGx;
+                    enemy.targetGridY = targetGy;
+                }
+            });
+        }
+    };
+
+    // Calculate Chairman 3x2 Grid Hitbox (3 tiles wide, 2 tiles forward)
+    function getChairman3x2Hitbox(gx, gy, facing) {
+        const tiles = [];
+        if (facing === 'UP') {
+            for (let f = 1; f <= 2; f++) {
+                for (let w = -1; w <= 1; w++) {
+                    tiles.push({ x: gx + w, y: gy - f });
+                }
+            }
+        } else if (facing === 'DOWN') {
+            for (let f = 1; f <= 2; f++) {
+                for (let w = -1; w <= 1; w++) {
+                    tiles.push({ x: gx + w, y: gy + f });
+                }
+            }
+        } else if (facing === 'LEFT') {
+            for (let f = 1; f <= 2; f++) {
+                for (let w = -1; w <= 1; w++) {
+                    tiles.push({ x: gx - f, y: gy + w });
+                }
+            }
+        } else if (facing === 'RIGHT') {
+            for (let f = 1; f <= 2; f++) {
+                for (let w = -1; w <= 1; w++) {
+                    tiles.push({ x: gx + f, y: gy + w });
+                }
+            }
+        }
+        return tiles;
+    }
+
+    // Enemy (CO2 Monster) with Zombie High School Binary/Marimo pursuit logic
+    class Enemy {
+        constructor(gx, gy) {
+            this.gridX = gx;
+            this.gridY = gy;
+            this.pixelX = gx * TILE_SIZE;
+            this.pixelY = gy * TILE_SIZE;
+            this.targetGridX = gx;
+            this.targetGridY = gy;
+            this.maxHp = 3;
+            this.hp = 3;
+            this.isMoving = false;
+            this.moveTimer = 0;
+            this.moveInterval = 0.55;
+            this.glideSpeed = 0.25; // 0.25s tile-to-tile glide
+            this.glideProgress = 0;
+            this.startX = this.pixelX;
+            this.startY = this.pixelY;
+            this.currentDirSymbol = '»';
+        }
+
+        update(dt) {
+            if (this.isMoving) {
+                this.glideProgress += dt / this.glideSpeed;
+                if (this.glideProgress >= 1.0) {
+                    this.glideProgress = 1.0;
+                    this.pixelX = this.targetGridX * TILE_SIZE;
+                    this.pixelY = this.targetGridY * TILE_SIZE;
+                    this.gridX = this.targetGridX;
+                    this.gridY = this.targetGridY;
+                    this.isMoving = false;
+                } else {
+                    this.pixelX = this.startX + (this.targetGridX * TILE_SIZE - this.startX) * this.glideProgress;
+                    this.pixelY = this.startY + (this.targetGridY * TILE_SIZE - this.startY) * this.glideProgress;
+                }
+            } else {
+                this.moveTimer += dt;
+                if (this.moveTimer >= this.moveInterval) {
+                    this.moveTimer = 0;
+                    this.decideNextTile();
+                }
+            }
+        }
+
+        // Marimo / Binary Logic Pursuit Algorithm
+        decideNextTile() {
+            const dx = player.gridX - this.gridX;
+            const dy = player.gridY - this.gridY;
+
+            let possibleMoves = [];
+
+            // 1. Compare |dx| vs |dy|
+            if (Math.abs(dx) >= Math.abs(dy)) {
+                // Priority: Horizontal
+                if (dx > 0) possibleMoves.push({ x: 1, y: 0, sym: '»' });
+                else if (dx < 0) possibleMoves.push({ x: -1, y: 0, sym: '«' });
+                
+                if (dy > 0) possibleMoves.push({ x: 0, y: 1, sym: '︾' });
+                else if (dy < 0) possibleMoves.push({ x: 0, y: -1, sym: '︽' });
+            } else {
+                // Priority: Vertical
+                if (dy > 0) possibleMoves.push({ x: 0, y: 1, sym: '︾' });
+                else if (dy < 0) possibleMoves.push({ x: 0, y: -1, sym: '︽' });
+
+                if (dx > 0) possibleMoves.push({ x: 1, y: 0, sym: '»' });
+                else if (dx < 0) possibleMoves.push({ x: -1, y: 0, sym: '«' });
+            }
+
+            // 2. Try Moves by Priority
+            for (let move of possibleMoves) {
+                const nextGx = this.gridX + move.x;
+                const nextGy = this.gridY + move.y;
+                if (!isSolidTile(nextGx, nextGy)) {
+                    this.startX = this.pixelX;
+                    this.startY = this.pixelY;
+                    this.targetGridX = nextGx;
+                    this.targetGridY = nextGy;
+                    this.glideProgress = 0;
+                    this.isMoving = true;
+                    this.currentDirSymbol = move.sym;
+                    break;
+                }
+            }
+        }
+
+        takeHit(damage) {
+            this.hp -= damage;
+            if (this.hp <= 0) {
+                killCount++;
+ EcoFX.notify("good","광물화 봉인 성공 → 목표 +1, 설비 압력 완화. 배출원 감축도 함께 필요합니다.");
+                pressure = Math.max(0, pressure - 4.5);
+            }
+        }
+    }
+
+    let enemies = [];
+    let enemySpawnTimer = 0;
+
+    function spawnEnemy() {
+        const spawnLocations = [
+            { x: 1, y: 1 }, { x: 20, y: 1 },
+            { x: 1, y: 14 }, { x: 20, y: 14 }
+        ];
+        const loc = spawnLocations[Math.floor(Math.random() * spawnLocations.length)];
+        enemies.push(new Enemy(loc.x, loc.y));
+    }
+
+    // Main Render Routine
+    function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 1. Draw Map & Obstacles
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                const x = c * TILE_SIZE;
+                const y = r * TILE_SIZE;
+                const tile = labMap[r][c];
+
+                // Floor Tiles
+                ctx.fillStyle = (c + r) % 2 === 0 ? '#1e2238' : '#181b2d';
+                ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+
+                // Grid lines
+                ctx.strokeStyle = 'rgba(59, 66, 97, 0.3)';
+                ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
+
+                // Solid Obstacles
+                if (tile === 1) { // Wall
+                    ctx.fillStyle = '#2b304c';
+                    ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                    ctx.fillStyle = '#414868';
+                    ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+                } else if (tile === 2) { // Server Rack
+                    ctx.fillStyle = '#16161e';
+                    ctx.fillRect(x + 2, y + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+                    ctx.fillStyle = '#2ac3de';
+                    ctx.fillRect(x + 6, y + 8, 8, 4);
+                    ctx.fillStyle = '#ff9e3b';
+                    ctx.fillRect(x + 18, y + 8, 6, 4);
+                } else if (tile === 3) { // Glass Chamber
+                    ctx.fillStyle = '#0f4c5c';
+                    ctx.fillRect(x + 4, y + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+                    ctx.strokeStyle = '#7dcfff';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(x + 4, y + 4, TILE_SIZE - 8, TILE_SIZE - 8);
+                }
+            }
+        }
+
+        // 2. Render 3x2 Attack Hitbox Visual Swing Arc
+        if (player.attackAnimTime > 0) {
+            const hitTiles = getChairman3x2Hitbox(player.gridX, player.gridY, player.facing);
+            ctx.fillStyle = 'rgba(247, 118, 142, 0.4)';
+            ctx.strokeStyle = '#f7768e';
+            ctx.lineWidth = 2;
+
+            hitTiles.forEach(t => {
+                const tx = t.x * TILE_SIZE;
+                const ty = t.y * TILE_SIZE;
+                ctx.fillRect(tx + 2, ty + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+                ctx.strokeRect(tx + 2, ty + 2, TILE_SIZE - 4, TILE_SIZE - 4);
+            });
+        }
+
+        // 3. Render Enemies (CO2 Monsters with Binary Logic Symbol overlay)
+        enemies.forEach(enemy => {
+            // Gas Body Arc
+            ctx.fillStyle = '#bb9af7';
+            ctx.beginPath();
+            ctx.arc(enemy.pixelX + 16, enemy.pixelY + 16, 12, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#7dcfff';
+            ctx.beginPath();
+            ctx.arc(enemy.pixelX + 16, enemy.pixelY + 16, 7, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Binary Direction Indicator
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(enemy.currentDirSymbol, enemy.pixelX + 16, enemy.pixelY + 19);
+
+            // HP Bar
+            const hpRatio = enemy.hp / enemy.maxHp;
+            ctx.fillStyle = '#1a1b26';
+            ctx.fillRect(enemy.pixelX + 4, enemy.pixelY - 5, 24, 4);
+            ctx.fillStyle = '#9ece6a';
+            ctx.fillRect(enemy.pixelX + 4, enemy.pixelY - 5, 24 * hpRatio, 4);
+        });
+
+        // 4. Render Player (Nam Dong-jin Sprite)
+        drawNamDongJinSprite(player.pixelX, player.pixelY, player.facing, player.animFrame);
+        drawFacingIndicator(player.gridX, player.gridY, player.facing);
+
+        // 5. Render Live Game HUD Overlay
+        renderHUD();
+    }
+
+    // Nam Dong-jin Pixel Sprite Rendering
+    const submittedFrames = Array.from({length:21}, (_,i) => {const image=new Image(); image.src=`image${String(i+1).padStart(2,'0')}.png`; return image;});
+    function drawNamDongJinSprite(px, py, facing, frame) {
+        const base = facing === 'UP' ? 14 : (facing === 'LEFT' || facing === 'RIGHT') ? 7 : 0;
+        const sprite = submittedFrames[base + (Math.floor(frame) % 7)];
+        if (sprite.complete && sprite.naturalWidth) {
+            ctx.save(); ctx.translate(px+16,py+16);
+            if(facing==='RIGHT') ctx.scale(-1,1);
+            const sw=44*sprite.naturalWidth/sprite.naturalHeight;ctx.drawImage(sprite,-sw/2,-22,sw,44); ctx.restore(); return;
+        }
+        ctx.save();
+        ctx.translate(px, py);
+
+        // Hair
+        ctx.fillStyle = '#2d201c';
+        ctx.fillRect(8, 4, 16, 10);
+
+        // Face
+        ctx.fillStyle = '#ffe0d0';
+        ctx.fillRect(10, 10, 12, 8);
+
+        // Dark Green Blazer
+        ctx.fillStyle = '#1b4d3e';
+        ctx.fillRect(8, 18, 16, 8);
+
+        // Red Tie & White Shirt
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(14, 18, 4, 4);
+        ctx.fillStyle = '#f7768e';
+        ctx.fillRect(15, 19, 2, 4);
+
+        // Grey Trousers & Shoes
+        ctx.fillStyle = '#565f89';
+        const legOffset = (frame % 2 === 1) ? 2 : 0;
+        ctx.fillRect(9, 26, 5, 4 + legOffset);
+        ctx.fillRect(18, 26, 5, 4 - legOffset);
+
+        ctx.fillStyle = '#0f0f14';
+        ctx.fillRect(8, 29 + legOffset, 6, 3);
+        ctx.fillRect(18, 29 - legOffset, 6, 3);
+
+        ctx.restore();
+    }
+
+    function drawFacingIndicator(gx, gy, facing) {
+        let arrowX = gx * TILE_SIZE + 16;
+        let arrowY = gy * TILE_SIZE + 16;
+
+        if (facing === 'UP') arrowY -= 22;
+        if (facing === 'DOWN') arrowY += 22;
+        if (facing === 'LEFT') arrowX -= 22;
+        if (facing === 'RIGHT') arrowX += 22;
+
+        ctx.fillStyle = '#e0af68';
+        ctx.beginPath();
+        ctx.arc(arrowX, arrowY, 4, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Render Live HUD Panel with Climate Campaign Atmosphere
+    function renderHUD() {
+        ctx.fillStyle = 'rgba(15, 17, 26, 0.88)';
+        ctx.fillRect(0, 0, canvas.width, 36);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 11px "Noto Sans KR"';
+        ctx.textAlign = 'left';
+        ctx.fillText(`공극 압력 (P/P_max): ${pressure.toFixed(1)}%`, 10, 22);
+
+        ctx.fillStyle = '#24283b';
+        ctx.fillRect(165, 10, 125, 16);
+        ctx.fillStyle = pressure > 75 ? '#f7768e' : (pressure > 45 ? '#e0af68' : '#7aa2f7');
+        ctx.fillRect(165, 10, Math.min(125, (pressure / 100) * 125), 16);
+
+        ctx.fillStyle = '#9ece6a';
+        ctx.fillText(`광물화 봉인: ${killCount} / ${requiredKills}`, 300, 22);
+
+        const cdPercent = player.attackCooldown > 0 ? (player.attackCooldown / 0.4) : 0;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(`[J] 광물화 봉인:`, 470, 22);
+        
+        ctx.fillStyle = '#24283b';
+        ctx.fillRect(565, 10, 55, 16);
+        if (cdPercent > 0) {
+            ctx.fillStyle = '#f7768e';
+            ctx.fillRect(565, 10, 55 * cdPercent, 16);
+        } else {
+            ctx.fillStyle = '#9ece6a';
+            ctx.fillRect(565, 10, 55, 16);
+        }
+
+        // Climate slogan on right
+        ctx.fillStyle = '#7dcfff';
+        ctx.font = '9px "Noto Sans KR"';
+        ctx.textAlign = 'right';
+        // Decorative banner omitted: it overlapped the live mineralization gauge.
+    }
+
+    // Game Loop
+    function gameLoop(now) {
+        const dt = Math.min((now - lastTime) / 1000, 0.1);
+        lastTime = now;
+
+        if (gameState === 'PLAYING') {
+            pressure += dt * 1.6;
+            if (pressure >= 100.0) {
+                triggerGameOver('지하 공극 압력이 100%를 초과하여 덮개암이 파쇄되고 이산화탄소가 재유출되었습니다!');
+            }
+
+            if (emergencyVentingCd > 0) emergencyVentingCd -= dt;
+            if (knockbackCd > 0) knockbackCd -= dt;
+
+            enemySpawnTimer += dt;
+            if (enemySpawnTimer >= 3.0 && enemies.length < 8) {
+                enemySpawnTimer = 0;
+                spawnEnemy();
+            }
+
+            player.update(dt);
+            enemies.forEach(enemy => enemy.update(dt));
+            enemies = enemies.filter(enemy => enemy.hp > 0);
+
+            enemies.forEach(enemy => {
+                if (enemy.gridX === player.gridX && enemy.gridY === player.gridY) {
+                    triggerGameOver('초임계 탄소 괴물과 직접 충돌하여 연구원 슈트가 손상되었습니다!');
+                }
+            });
+
+            if (killCount >= requiredKills) {
+                triggerVictory();
+            }
+
+            render();
+        }
+
+        requestAnimationFrame(gameLoop);
+    }
+
+    function triggerGameOver(reason) {
+        gameState = 'GAMEOVER';
+        gameOverReason.innerText = reason;
+        document.getElementById('final-kills').innerText = killCount;
+        document.getElementById('final-pressure').innerText = `${pressure.toFixed(1)}%`;
+        gameOverScreen.classList.remove('hidden');
+    }
+
+    function triggerVictory() {
+ EcoFX.notify("win","봉인 임무 달성. 재도전에서는 긴급 배출을 줄여보세요.");
+        gameState = 'VICTORY';
+        victoryScreen.classList.remove('hidden');
+    }
+
+    function resetGame() {
+        killCount = 0;
+        pressure = 20.0;
+        emergencyVentingCd = 0;
+        knockbackCd = 0;
+        enemies = [];
+        player.reset();
+        spawnEnemy();
+        spawnEnemy();
+    }
+
+    // Buttons
+    startBtn.addEventListener('click', () => {
+        startScreen.classList.add('hidden');
+        resetGame();
+        gameState = 'PLAYING';
+    });
+
+    restartBtn.addEventListener('click', () => {
+        gameOverScreen.classList.add('hidden');
+        resetGame();
+        gameState = 'PLAYING';
+    });
+
+    victoryRestartBtn.addEventListener('click', () => {
+        victoryScreen.classList.add('hidden');
+        resetGame();
+        gameState = 'PLAYING';
+    });
+
+EcoFX.mount({title:"포집·저장 설비 관리",goal:"대상 봉인 → 압력 관리 → 목표 달성. 긴급 배출은 저장과 다릅니다.",note:"CCUS만으로 모든 배출을 해결할 수 없습니다. 수치는 설비 관리 액션의 가상 규칙입니다.",read:()=>({label:'봉인 '+killCount+'/'+requiredKills+' · 기록',progress:killCount/requiredKills*100,detail:'봉인 '+killCount+'회 · 압력 '+Math.round(pressure)+'%. 긴급 배출은 압력을 낮추지만 봉인 실적을 늘리지 않습니다.'}),actions:[]});
+    render();
+    requestAnimationFrame(gameLoop);
+};
+</script>
+</body>
+</html>

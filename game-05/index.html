@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta name="referrer" content="no-referrer">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>분리수거 몬스터즈: 업사이클 디펜스</title>
+    <link rel="stylesheet" href="vendor/tailwind.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbit&family=Black+Han+Sans&display=swap');
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background-color: #0F172A; /* 사이버펑크 톤 어두운 배경 */
+            font-family: 'Orbit', sans-serif;
+            overflow: hidden; touch-action: none; user-select: none;
+            color: white;
+        }
+
+        #game-container {
+            position: relative; width: 100%; max-width: 600px; height: 100%;
+            margin: 0 auto; background: linear-gradient(180deg, #020617 0%, #1E1B4B 100%);
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            overflow: hidden;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* UI Layer */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column; z-index: 10;
+        }
+
+        /* Top HUD */
+        .hud-top {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            padding: 15px; background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+        }
+
+        .health-bar { font-size: 1.5rem; color: #EF4444; text-shadow: 0 0 10px #EF4444; }
+        .score-box { text-align: right; }
+        .score-label { font-size: 0.8rem; color: #9CA3AF; }
+        .score-value { font-size: 2rem; font-weight: bold; color: #10B981; text-shadow: 0 0 10px #10B981; line-height: 1; }
+        
+        .inventory { text-align: right; display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; margin-top: 10px;}
+        .inv-item { display: flex; align-items: center; justify-content: flex-end; gap: 5px; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
+
+        /* Mobile Controls */
+        #mobile-controls {
+            position: absolute; bottom: 0; left: 0; width: 100%;
+            padding: 10px 15px 20px 15px; box-sizing: border-box;
+            display: flex; flex-direction: column; gap: 10px; pointer-events: auto;
+            background: linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 70%, transparent 100%);
+        }
+
+        .ctrl-row { display: flex; justify-content: space-between; gap: 10px; }
+        
+        .btn {
+            flex: 1; padding: 15px 0; border-radius: 12px; border: 2px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.1); color: white; font-family: 'Black Han Sans', sans-serif; font-size: 1.2rem;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.5); cursor: pointer; transition: transform 0.1s, background 0.1s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn:active { transform: translateY(4px); box-shadow: 0 0px 0 rgba(0,0,0,0.5); }
+        .btn-sub { font-family: 'Orbit', sans-serif; font-size: 0.7rem; opacity: 0.8; margin-top: 2px; }
+
+        .btn-move { background: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.5); }
+        .btn-space { background: rgba(234, 179, 8, 0.2); border-color: rgba(234, 179, 8, 0.5); color: #FDE047; }
+        
+        /* Weapon Buttons */
+        .btn-a { background: rgba(59, 130, 246, 0.2); border-color: #3B82F6; color: #93C5FD; }
+        .btn-s { background: rgba(16, 185, 129, 0.2); border-color: #10B981; color: #6EE7B7; }
+        .btn-d { background: rgba(249, 115, 22, 0.2); border-color: #F97316; color: #FDBA74; }
+        .btn-f { background: rgba(168, 85, 247, 0.2); border-color: #A855F7; color: #D8B4FE; }
+
+        /* Screens */
+        .screen {
+            position: absolute; inset: 0; background: rgba(15, 23, 42, 0.95);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 50; pointer-events: auto; padding: 20px; text-align: center;
+        }
+        .hidden { display: none !important; }
+        
+        h1.title { font-family: 'Black Han Sans', sans-serif; font-size: 2.8rem; color: #10B981; margin-bottom: 10px; text-shadow: 0 0 20px #10B981; line-height: 1.2; }
+        .subtitle { font-size: 1.1rem; color: #94A3B8; margin-bottom: 30px; }
+
+        .btn-start {
+            background: #10B981; color: #022C22; border: none; padding: 15px 40px; font-size: 1.5rem; font-family: 'Black Han Sans', sans-serif;
+            border-radius: 30px; cursor: pointer; box-shadow: 0 0 20px rgba(16,185,129,0.4); transition: all 0.2s; margin-bottom: 20px;
+        }
+        .btn-start:hover { transform: scale(1.05); box-shadow: 0 0 30px rgba(16,185,129,0.6); }
+
+        .guide-box { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 15px; padding: 20px; width: 100%; max-width: 400px; text-align: left; }
+        .guide-step { margin-bottom: 15px; }
+        .guide-step strong { color: #FDE047; }
+        .guide-weapons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; font-size: 0.9rem; }
+        .guide-weapons div { padding: 5px; border-radius: 5px; background: rgba(0,0,0,0.5); display: flex; align-items: center; gap: 5px; }
+        
+        .shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake { 10%, 90% { transform: translate3d(-2px, 0, 0); } 20%, 80% { transform: translate3d(3px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-5px, 0, 0); } 40%, 60% { transform: translate3d(5px, 0, 0); } }
+
+        /* Floating FX */
+        .upcycle-popup { position: absolute; font-size: 3rem; pointer-events: none; z-index: 20; font-family: 'Black Han Sans', sans-serif; animation: floatUp 1.2s ease-out forwards; text-shadow: 0 0 20px rgba(255,255,255,0.8); }
+        @keyframes floatUp {
+            0% { transform: translate(-50%, -50%) scale(0.1); opacity: 0; }
+            20% { transform: translate(-50%, -100%) scale(1.5); opacity: 1; }
+            100% { transform: translate(-50%, -250%) scale(0.8); opacity: 0; }
+        }
+    </style>
+<style>.hidden { display: none !important; }</style>
+<script src="eco-feedback.js"></script>
+<style id="final-layout">#gameCanvas{height:auto} @media(max-width:600px){.screen{overflow-y:auto;justify-content:flex-start}.guide-box{box-sizing:border-box}.hud-top{padding:10px}.health-bar{font-size:1.2rem}}</style></head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div>
+                <div class="score-label">방어선 체력</div>
+                <div class="health-bar" id="healthDisplay">❤️❤️❤️❤️❤️</div>
+            </div>
+            <div class="score-box">
+                <div class="score-label">ECO SCORE</div>
+                <div id="scoreDisplay" class="score-value">0</div>
+                <div class="inventory">
+                    <div class="inv-item" style="color: #6EE7B7">플리스 자켓 🧥 <span id="inv-plastic">0</span></div>
+                    <div class="inv-item" style="color: #93C5FD">새 책 📚 <span id="inv-paper">0</span></div>
+                    <div class="inv-item" style="color: #FDBA74">자전거 🚲 <span id="inv-can">0</span></div>
+                    <div class="inv-item" style="color: #D8B4FE">수리된 게임기 🎮 <span id="inv-elec">0</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Touch Controls -->
+    <div id="mobile-controls">
+        <div class="ctrl-row">
+            <button class="btn btn-move" onpointerdown="handleInput('left')">◀<div class="btn-sub">LEFT</div></button>
+            <button class="btn btn-space" onpointerdown="handleInput('space')">라벨제거 / 압축<div class="btn-sub">SPACE</div></button>
+            <button class="btn btn-move" onpointerdown="handleInput('right')">▶<div class="btn-sub">RIGHT</div></button>
+        </div>
+        <div class="ctrl-row">
+            <button class="btn btn-a" onpointerdown="handleInput('a')">A<div class="btn-sub">플라스틱</div></button>
+            <button class="btn btn-s" onpointerdown="handleInput('s')">S<div class="btn-sub">종이</div></button>
+            <button class="btn btn-d" onpointerdown="handleInput('d')">D<div class="btn-sub">캔·철류</div></button>
+            <button class="btn btn-f" onpointerdown="handleInput('f')">F<div class="btn-sub">폐가전</div></button>
+        </div>
+    </div>
+
+    <!-- Main Menu Screen -->
+    <div id="start-screen" class="screen">
+        <h1 class="title">분리수거 몬스터즈<br><span style="color:#FFF; font-size:2rem;">업사이클 디펜스</span></h1>
+        <div class="subtitle">실시간 라인 디펜스 | 2단계 정화 시스템</div>
+        
+        <div class="guide-box">
+            <div class="guide-step">
+                <strong>1. 이동:</strong> [←] [→] 방향키로 라인을 이동하세요.
+            </div>
+            <div class="guide-step">
+                <strong>2. 전처리 (Spacebar):</strong> 몬스터의 라벨을 떼거나 방전시킵니다.<br>
+                <span class="text-xs text-gray-400">*몬스터마다 요구 클릭 수가 다릅니다. (예: 폐가전 5회)</span>
+            </div>
+            <div class="guide-step">
+                <strong>3. 속성 사격:</strong> 전처리된 몬스터에게 맞는 속성빔을 발사하세요! (틀리면 몬스터가 빨라집니다)
+            </div>
+            <div class="guide-weapons">
+                <div style="color: #60A5FA;">[A] 플라스틱 빔</div>
+                <div style="color: #34D399;">[S] 종이/박스 빔</div>
+                <div style="color: #FB923C;">[D] 캔/고철 빔</div>
+                <div style="color: #C084FC;">[F] 전자폐기물 빔</div>
+            </div>
+        </div>
+        <br>
+        <button class="btn-start" onclick="startGame()">작전 시작</button>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameover-screen" class="screen hidden">
+        <h1 class="title" style="color:#EF4444; text-shadow: 0 0 20px #EF4444;">방어선 붕괴!</h1>
+        <div class="subtitle">오염된 도시를 구하지 못했습니다.</div>
+        
+        <div class="guide-box" style="text-align: center;">
+            <div class="text-gray-400 mb-2">최종 에코 스코어</div>
+            <div id="final-score" style="font-size: 3rem; color: #10B981; font-family: 'Black Han Sans', sans-serif;">0</div>
+        </div>
+        <br>
+        <button class="btn-start" onclick="startGame()">다시 도전하기</button>
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // 1. Data Structures & Settings
+    // ==========================================
+    const LANE_COUNT = 5;
+    const BASE_HEALTH_MAX = 5;
+    
+    // Trash Types & Colors
+    const TrashType = {
+        Plastic: { id: 'Plastic', name: '플라스틱', key: 'a', color: '#3B82F6', upcycle: '🧥', invId: 'inv-plastic' },
+        Paper:   { id: 'Paper',   name: '종이/박스', key: 's', color: '#10B981', upcycle: '📚', invId: 'inv-paper' },
+        Can:     { id: 'Can',     name: '캔/철류',  key: 'd', color: '#F97316', upcycle: '🚲', invId: 'inv-can' },
+        Elec:    { id: 'Elec',    name: '전자폐기물', key: 'f', color: '#A855F7', upcycle: '🎮', invId: 'inv-elec' }
+    };
+
+    const PurifyState = {
+        Raw: 0,
+        PreProcessed: 1,
+        Purified: 2
+    };
+
+    // Monster Dictionary (Based on GDD)
+    const MonsterData = [
+        { name: '비닐 뭉치', type: TrashType.Plastic, speed: 1.5, clicks: 1, icon: '🛍️', desc: '매우 빠름, 최우선 타격' },
+        { name: '뚱뚱한 페트병', type: TrashType.Plastic, speed: 0.8, clicks: 2, icon: '🧴', desc: '표준형' },
+        { name: '스티로폼 박스', type: TrashType.Paper, speed: 1.0, clicks: 1, icon: '📦', desc: '표준형' },
+        { name: '고철 캔', type: TrashType.Can, speed: 0.9, clicks: 1, icon: '🥫', desc: '표준형' },
+        { name: '고철 냉장고', type: TrashType.Elec, speed: 0.3, clicks: 5, icon: '🧊', desc: '매우 느림, 방전 5회 필요' },
+        { name: '고장난 라디오', type: TrashType.Elec, speed: 0.5, clicks: 3, icon: '📻', desc: '느림, 방전 3회' }
+    ];
+
+    // ==========================================
+    // 2. Game State Variables
+    // ==========================================
+    let isPlaying = false;
+    let baseHealth = BASE_HEALTH_MAX;
+    let ecoScore = 0;
+    
+    let canvas, ctx, cw, ch, laneWidth;
+    let lastTime = 0;
+    
+    let currentLane = 2; // 중앙(3번 라인, index 2) 시작
+    let turretX = 0;
+    
+    let monsters = [];
+    let particles = [];
+    let floatingTexts = [];
+    
+    let spawnTimer = 0;
+    let spawnInterval = 2500; // ms
+    let gameTime = 0;
+
+    let inventory = { 'inv-plastic': 0, 'inv-paper': 0, 'inv-can': 0, 'inv-elec': 0 };
+
+    // ==========================================
+    // 3. Initialization & Setup
+    // ==========================================
+    function initCanvas() {
+        canvas = document.getElementById('gameCanvas');
+        ctx = canvas.getContext('2d');
+        resize();
+        window.addEventListener('resize', resize);
+    }
+
+    function resize() {
+        cw = canvas.parentElement.clientWidth;
+        // 하단 모바일 컨트롤 영역 고려 (약 150px)
+        const uiHeight = window.innerWidth <= 600 ? 150 : 120; 
+        ch = canvas.parentElement.clientHeight - uiHeight; 
+        canvas.width = cw;
+        canvas.height = ch;
+        laneWidth = cw / LANE_COUNT;
+        
+        if(!isPlaying) {
+            turretX = currentLane * laneWidth + laneWidth/2;
+            drawStatic();
+        }
+    }
+
+    function startGame() {
+        if(!canvas) initCanvas();
+        document.getElementById('start-screen').classList.add('hidden');
+        document.getElementById('gameover-screen').classList.add('hidden');
+        
+        baseHealth = BASE_HEALTH_MAX;
+        ecoScore = 0;
+        currentLane = 2;
+        turretX = currentLane * laneWidth + laneWidth/2;
+        
+        monsters = [];
+        particles = [];
+        floatingTexts = [];
+        
+        spawnTimer = 2000; // 초기 유예 시간
+        spawnInterval = 2500;
+        gameTime = 0;
+        
+        for(let key in inventory) { inventory[key] = 0; document.getElementById(key).innerText = 0; }
+        
+        updateHUD();
+        isPlaying = true;
+        lastTime = performance.now();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function gameOver() {
+ EcoFX.notify("bad","처리 용량 초과. 전처리 후 재질별 분류 순서를 지켜 다시 도전하세요.");
+        isPlaying = false;
+        document.getElementById('game-container').classList.add('shake');
+        setTimeout(() => document.getElementById('game-container').classList.remove('shake'), 500);
+        
+        document.getElementById('final-score').innerText = ecoScore.toLocaleString();
+        document.getElementById('gameover-screen').classList.remove('hidden');
+    }
+
+    // ==========================================
+    // 4. Entities (Classes)
+    // ==========================================
+    class Monster {
+        constructor(data, lane) {
+            this.data = data;
+            this.lane = lane;
+            this.x = lane * laneWidth + laneWidth / 2;
+            this.y = -50; // 천장에서 시작
+            this.speed = data.speed * (ch / 1000); // 화면 비율에 따른 속도 보정
+            this.clicksLeft = data.clicks;
+            this.state = PurifyState.Raw;
+            this.size = Math.min(laneWidth * 0.6, 60);
+            
+            // 시각적 피드백용 변수
+            this.hitFlash = 0;
+            this.yOffset = 0; // 넉백 효과용
+        }
+
+        update(dt) {
+            if(this.yOffset < 0) this.yOffset += dt * 0.1; // 넉백 복구
+            else this.yOffset = 0;
+            
+            this.y += this.speed * dt;
+            if(this.hitFlash > 0) this.hitFlash -= dt * 0.005;
+        }
+
+        draw(ctx) {
+            const drawY = this.y + this.yOffset;
+            ctx.save();
+            ctx.translate(this.x, drawY);
+            
+            // Background/Outline based on state
+            if (this.state === PurifyState.Raw) {
+                // 오염된 상태: 탁한 색상 및 경고 라벨 표시
+                ctx.fillStyle = 'rgba(71, 85, 105, 0.8)';
+                ctx.beginPath();
+                ctx.roundRect(-this.size/2, -this.size/2, this.size, this.size, 10);
+                ctx.fill();
+                
+                // 경고 띠 (라벨)
+                ctx.fillStyle = '#EF4444';
+                ctx.fillRect(-this.size/2, -this.size/6, this.size, this.size/3);
+                
+                // 남은 클릭 수 표시
+                ctx.fillStyle = '#FFF';
+                ctx.font = 'bold 16px Orbit';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`SPACE x${this.clicksLeft}`, 0, -this.size/2 - 15);
+            } else if (this.state === PurifyState.PreProcessed) {
+                // 전처리 완료: 고유 네온 색상으로 빛남
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = this.data.type.color;
+                ctx.strokeStyle = this.data.type.color;
+                ctx.lineWidth = 3;
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                
+                ctx.beginPath();
+                ctx.roundRect(-this.size/2, -this.size/2, this.size, this.size, 10);
+                ctx.fill();
+                ctx.stroke();
+                
+                // 타겟팅 키 가이드 (예: [A])
+                ctx.fillStyle = this.data.type.color;
+                ctx.font = 'bold 14px Orbit';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`[${this.data.type.key.toUpperCase()}]`, 0, -this.size/2 - 15);
+            }
+
+            // Hit Flash Effect
+            if(this.hitFlash > 0) {
+                ctx.fillStyle = `rgba(255,255,255,${this.hitFlash})`;
+                ctx.beginPath();
+                ctx.roundRect(-this.size/2, -this.size/2, this.size, this.size, 10);
+                ctx.fill();
+            }
+
+            // Draw Icon (Emoji)
+            ctx.font = `${this.size * 0.6}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowBlur = 0;
+            ctx.fillText(this.data.icon, 0, 0);
+            
+            ctx.restore();
+        }
+
+        applyPreProcess() {
+            if (this.state === PurifyState.Raw) {
+                this.clicksLeft--;
+                this.hitFlash = 1.0;
+                this.yOffset = -20; // 넉백 (위로 튕김)
+                
+                spawnFloatText(this.x, this.y, "CRUSH!", "#FDE047");
+
+                if (this.clicksLeft <= 0) {
+                    this.state = PurifyState.PreProcessed;
+                    spawnFloatText(this.x, this.y - 20, "READY", this.data.type.color);
+                    createParticles(this.x, this.y, '#EF4444', 10); // 라벨 파괴 파티클
+                }
+            }
+        }
+
+        applyPurify(weaponKey) {
+            if (this.state === PurifyState.PreProcessed) {
+                if (weaponKey === this.data.type.key) {
+                    // 정답! 정화 성공
+                    this.state = PurifyState.Purified;
+                    ecoScore += 100;
+ EcoFX.notify("good","전처리 + 올바른 재질 분류 → 회수 자원 1개, 환경점수 +100");
+                    inventory[this.data.type.invId]++;
+                    updateHUD();
+                    
+                    // 네온 파티클 폭발
+                    createParticles(this.x, this.y, this.data.type.color, 20);
+                    // 업사이클 연출 팝업 (HTML DOM 사용)
+                    spawnUpcyclePopup(this.data.type.upcycle, this.x, this.y);
+                    
+                    return true; // Destroy 시그널
+                } else {
+                    // 오답 패널티: 속도 증가 및 경고
+                    this.speed *= 1.5;
+ EcoFX.notify("bad","분류가 맞지 않습니다. 표시된 재질 키를 확인하세요. 처리 지연으로 이동이 빨라집니다.");
+                    this.hitFlash = 0.5;
+                    spawnFloatText(this.x, this.y, "오답 패널티!", "#EF4444");
+                    document.getElementById('game-container').classList.add('shake');
+                    setTimeout(() => document.getElementById('game-container').classList.remove('shake'), 200);
+                    return false;
+                }
+            } else if (this.state === PurifyState.Raw) {
+                spawnFloatText(this.x, this.y, "전처리 필요!", "#9CA3AF");
+                return false;
+            }
+        }
+    }
+
+    class Particle {
+        constructor(x, y, color) {
+            this.x = x; this.y = y; this.color = color;
+            this.vx = (Math.random() - 0.5) * 8;
+            this.vy = (Math.random() - 0.5) * 8;
+            this.life = 1.0;
+            this.size = Math.random() * 4 + 2;
+        }
+        update(dt) {
+            this.x += this.vx; this.y += this.vy;
+            this.life -= dt * 0.002;
+        }
+        draw(ctx) {
+            ctx.globalAlpha = Math.max(0, this.life);
+            ctx.fillStyle = this.color;
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill();
+            ctx.globalAlpha = 1.0;
+        }
+    }
+
+    class FloatText {
+        constructor(x, y, text, color) {
+            this.x = x; this.y = y; this.text = text; this.color = color;
+            this.life = 1.0;
+        }
+        update(dt) {
+            this.y -= dt * 0.05;
+            this.life -= dt * 0.001;
+        }
+        draw(ctx) {
+            ctx.globalAlpha = Math.max(0, this.life);
+            ctx.fillStyle = this.color;
+            ctx.font = 'bold 20px Orbit';
+            ctx.textAlign = 'center';
+            ctx.fillText(this.text, this.x, this.y);
+            ctx.globalAlpha = 1.0;
+        }
+    }
+
+    // ==========================================
+    // 5. Game Core Logic
+    // ==========================================
+    function createParticles(x, y, color, count) {
+        for(let i=0; i<count; i++) particles.push(new Particle(x, y, color));
+    }
+    
+    function spawnFloatText(x, y, text, color) {
+        floatingTexts.push(new FloatText(x, y, text, color));
+    }
+
+    function spawnUpcyclePopup(icon, x, y) {
+        const pop = document.createElement('div');
+        pop.className = 'upcycle-popup';
+        pop.innerText = icon;
+        pop.style.left = `${(x / cw) * 100}%`;
+        pop.style.top = `${(y / (ch + 150)) * 100}%`; // UI 영역 오프셋 보정
+        document.getElementById('game-container').appendChild(pop);
+        setTimeout(() => pop.remove(), 1200);
+    }
+
+    function takeDamage() {
+        baseHealth--;
+        updateHUD();
+        document.getElementById('game-container').classList.add('shake');
+        setTimeout(() => document.getElementById('game-container').classList.remove('shake'), 400);
+        
+        // 배경 번쩍임 (데미지 피드백)
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.5)';
+        ctx.fillRect(0, 0, cw, ch);
+        
+        if(baseHealth <= 0) gameOver();
+    }
+
+    function updateHUD() {
+        document.getElementById('scoreDisplay').innerText = ecoScore.toLocaleString();
+        let hearts = '';
+        for(let i=0; i<BASE_HEALTH_MAX; i++) hearts += (i < baseHealth) ? '❤️' : '🖤';
+        document.getElementById('healthDisplay').innerText = hearts;
+        
+        for(let key in inventory) {
+            document.getElementById(key).innerText = inventory[key];
+        }
+    }
+
+    // Action Execution (Raycast simulation)
+    function executeAction(type) {
+        if(!isPlaying) return;
+        
+        // 현재 라인에 있는 몬스터 중 가장 아래에 있는(y가 가장 큰) 타겟 찾기
+        let target = null;
+        let maxY = -100;
+        
+        for(let m of monsters) {
+            if(m.lane === currentLane && m.y > maxY) {
+                maxY = m.y;
+                target = m;
+            }
+        }
+
+        // 레이저 발사 시각 효과 생성 (Turret 위치에서 위로)
+        createLaserEffect(type);
+
+        if(target) {
+            if(type === 'space') {
+                target.applyPreProcess();
+            } else {
+                let isDestroyed = target.applyPurify(type);
+                if(isDestroyed) {
+                    monsters = monsters.filter(m => m !== target);
+                }
+            }
+        }
+    }
+
+    // 발사 이펙트 배열
+    let lasers = [];
+    function createLaserEffect(type) {
+        let color = '#FFF'; // spacebar
+        if(type === 'a') color = TrashType.Plastic.color;
+        if(type === 's') color = TrashType.Paper.color;
+        if(type === 'd') color = TrashType.Can.color;
+        if(type === 'f') color = TrashType.Elec.color;
+        
+        lasers.push({
+            x: currentLane * laneWidth + laneWidth/2,
+            width: type === 'space' ? laneWidth * 0.8 : laneWidth * 0.3,
+            color: color,
+            life: 1.0
+        });
+    }
+
+    // ==========================================
+    // 6. Game Loop & Rendering
+    // ==========================================
+    function gameLoop(time) {
+        if(!isPlaying) return;
+        requestAnimationFrame(gameLoop);
+
+        const dt = time - lastTime;
+        lastTime = time;
+        gameTime += dt;
+
+        update(dt);
+        draw();
+    }
+
+    function update(dt) {
+        // Difficulty scaling: decrease spawn interval over time
+        spawnInterval = Math.max(800, 2500 - (gameTime * 0.015));
+
+        // Spawning
+        spawnTimer -= dt;
+        if (spawnTimer <= 0) {
+            let randomLane = Math.floor(Math.random() * LANE_COUNT);
+            let randomData = MonsterData[Math.floor(Math.random() * MonsterData.length)];
+            monsters.push(new Monster(randomData, randomLane));
+            spawnTimer = spawnInterval;
+        }
+
+        // Turret Movement (Smooth lerp)
+        const targetX = currentLane * laneWidth + laneWidth/2;
+        turretX += (targetX - turretX) * (dt * 0.02);
+
+        // Update Entities
+        for (let i = monsters.length - 1; i >= 0; i--) {
+            let m = monsters[i];
+            m.update(dt);
+            
+            // 방어선 침범 체크 (화면 하단)
+            if (m.y > ch) {
+                takeDamage();
+                monsters.splice(i, 1);
+            }
+        }
+
+        particles.forEach(p => p.update(dt));
+        particles = particles.filter(p => p.life > 0);
+        
+        floatingTexts.forEach(ft => ft.update(dt));
+        floatingTexts = floatingTexts.filter(ft => ft.life > 0);
+
+        lasers.forEach(l => l.life -= dt * 0.005);
+        lasers = lasers.filter(l => l.life > 0);
+    }
+
+    function drawStatic() {
+        ctx.clearRect(0, 0, cw, ch);
+        drawGrid();
+        drawTurret();
+    }
+
+    function drawGrid() {
+        // Draw Lanes
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.lineWidth = 1;
+        for (let i = 1; i < LANE_COUNT; i++) {
+            let x = i * laneWidth;
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, ch);
+            ctx.stroke();
+        }
+        
+        // Active Lane Highlight
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+        ctx.fillRect(currentLane * laneWidth, 0, laneWidth, ch);
+        
+        // Defense Line (Bottom)
+        ctx.strokeStyle = '#EF4444';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([10, 10]);
+        ctx.beginPath();
+        ctx.moveTo(0, ch - 20);
+        ctx.lineTo(cw, ch - 20);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    function drawTurret() {
+        // Draw Player Turret at the bottom of the active lane
+        const y = ch - 30;
+        const size = Math.min(laneWidth * 0.8, 80);
+        
+        ctx.save();
+        ctx.translate(turretX, y);
+        
+        // Base
+        ctx.fillStyle = '#1E293B';
+        ctx.strokeStyle = '#38BDF8';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-size/2, size/2);
+        ctx.lineTo(size/2, size/2);
+        ctx.lineTo(size/3, -size/3);
+        ctx.lineTo(-size/3, -size/3);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // Cannon barrel
+        ctx.fillStyle = '#0EA5E9';
+        ctx.fillRect(-10, -size/2 - 10, 20, size/2 + 10);
+        
+        // Core glow
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#38BDF8';
+        ctx.fillStyle = '#E0F2FE';
+        ctx.beginPath();
+        ctx.arc(0, 0, 10, 0, Math.PI*2);
+        ctx.fill();
+        
+        ctx.restore();
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, cw, ch);
+        
+        drawGrid();
+
+        // Draw Lasers
+        lasers.forEach(l => {
+            ctx.globalAlpha = l.life;
+            ctx.fillStyle = l.color;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = l.color;
+            ctx.fillRect(l.x - l.width/2, 0, l.width, ch);
+            ctx.globalAlpha = 1.0;
+            ctx.shadowBlur = 0;
+        });
+
+        monsters.forEach(m => m.draw(ctx));
+        particles.forEach(p => p.draw(ctx));
+        
+        drawTurret();
+        
+        floatingTexts.forEach(ft => ft.draw(ctx));
+    }
+
+    // ==========================================
+    // 7. Input Handling (Keyboard & Touch)
+    // ==========================================
+    function handleInput(action) {
+        if(!isPlaying) return;
+        
+        switch(action) {
+            case 'left':
+                currentLane = Math.max(0, currentLane - 1);
+                break;
+            case 'right':
+                currentLane = Math.min(LANE_COUNT - 1, currentLane + 1);
+                break;
+            case 'space':
+            case 'a':
+            case 's':
+            case 'd':
+            case 'f':
+                executeAction(action);
+                break;
+        }
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if(e.repeat) return; // Ignore hold
+        
+        if (e.code === 'ArrowLeft' || e.code === 'KeyArrowLeft') handleInput('left');
+        else if (e.code === 'ArrowRight' || e.code === 'KeyArrowRight') handleInput('right');
+        else if (e.code === 'Space') { e.preventDefault(); handleInput('space'); }
+        else if (e.key.toLowerCase() === 'a') handleInput('a');
+        else if (e.key.toLowerCase() === 's') handleInput('s');
+        else if (e.key.toLowerCase() === 'd') handleInput('d');
+        else if (e.key.toLowerCase() === 'f') handleInput('f');
+    });
+
+    // Initial setup on load
+    window.onload = () => {
+        initCanvas();
+    };
+</script>
+<script>
+EcoFX.mount({title:"분리배출에서 자원 회수까지",goal:"Space 전처리 후 재질에 맞는 키를 눌러 자원을 회수하세요.",note:"",read:()=>({label:'회수 '+Math.floor(ecoScore/100)+'개 · 기록',progress:baseHealth/BASE_HEALTH_MAX*100,detail:'회수 '+Math.floor(ecoScore/100)+'개 · 기지 체력 '+baseHealth+'/'+BASE_HEALTH_MAX+'. 체력 막대는 남은 처리 여력을 나타냅니다.'}),actions:[]});
+</script>
+</body>
+</html>

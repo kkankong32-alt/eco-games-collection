@@ -1,0 +1,1359 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta name="referrer" content="no-referrer">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>개밤티 가재 피하기</title>
+    <link rel="stylesheet" href="vendor/tailwind.css">
+    <link href="https://fonts.googleapis.com/css2?family=DungGeunMo&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: #050b14;
+            color: white;
+            font-family: 'DungGeunMo', 'Press Start 2P', monospace;
+            overflow: hidden;
+            touch-action: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            aspect-ratio: 19 / 23;
+            background: #000;
+            box-shadow: 0 0 25px rgba(0, 255, 200, 0.25);
+            border: 2px solid #0a3a40;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        #intro-screen { background: rgba(5, 11, 20, 0.45); }
+        .solid-overlay { background: rgba(5, 11, 20, 0.95); }
+        
+        .heavy-rounded-title {
+            font-family: 'Jua', 'NanumSquareRound', sans-serif;
+            font-weight: 900;
+            -webkit-text-stroke: 8px #000000;
+            paint-order: stroke fill;
+            stroke-linejoin: round;
+            text-shadow: 6px 6px 0px #000000, 10px 10px 0px rgba(0, 0, 0, 0.8);
+        }
+
+        .heavy-rounded-title-sm {
+            font-family: 'Jua', 'NanumSquareRound', sans-serif;
+            font-weight: 900;
+            -webkit-text-stroke: 4px #000000;
+            paint-order: stroke fill;
+            stroke-linejoin: round;
+            text-shadow: 3px 3px 0px #000000, 5px 5px 0px rgba(0, 0, 0, 0.8);
+        }
+
+        .hidden { display: none !important; }
+        
+        #game-container::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 5;
+            background-size: 100% 4px, 3px 100%;
+            pointer-events: none;
+        }
+
+        #taunt-popup {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: #ff2a2a;
+            border: 4px solid #fff;
+            padding: 10px;
+            border-radius: 8px;
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            z-index: 20;
+            animation: shake 0.5s infinite;
+            box-shadow: 0 0 15px #ff0000;
+        }
+
+        .speech-bubble {
+            background: white;
+            color: black;
+            padding: 8px;
+            border-radius: 8px;
+            font-size: 14px;
+            position: relative;
+            line-height: 1.5;
+            font-weight: bold;
+        }
+        .speech-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: 10px;
+            right: -10px;
+            border-width: 10px 0 10px 10px;
+            border-style: solid;
+            border-color: transparent transparent transparent white;
+        }
+
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            25% { transform: translate(-1px, -2px) rotate(-1deg); }
+            50% { transform: translate(-3px, 0px) rotate(1deg); }
+            75% { transform: translate(3px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -1px) rotate(0deg); }
+        }
+
+        .hud {
+            position: absolute;
+            top: 0; width: 100%;
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 5;
+            font-size: 14px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.85), transparent);
+            box-sizing: border-box;
+            color: #00ffcc;
+            text-shadow: 1px 1px 0 #000;
+        }
+        button {
+            background: #00ffcc;
+            color: #000;
+            border: none;
+            padding: 15px 20px;
+            font-family: inherit;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-top: 20px;
+            transition: all 0.2s;
+            box-shadow: 0 4px #00997a;
+        }
+        button:hover { transform: translateY(2px); box-shadow: 0 2px #00997a; }
+        button:active { transform: translateY(4px); box-shadow: 0 0 #00997a; }
+    </style>
+<style>.hidden { display: none !important; }</style>
+<script src="eco-feedback.js"></script>
+</head>
+<body>
+
+<div id="game-container">
+    <div class="hud" id="hud">
+        <div id="title-display" class="hidden sm:block tracking-wide heavy-rounded-title-sm" style="font-size: 18px;">
+            <span style="color:#5a8f7b;">개밤티</span> <span style="color:#ff1a1a;">가재</span> <span style="color:#0077ff;">피하기</span>
+        </div>
+        <div id="score-display">점수: 0</div>
+        <div id="level-display">LVL: 1</div>
+        <div id="lives-display" class="text-red-500 text-lg">♥♥♥</div>
+        <div id="pause-btn" class="text-yellow-400 cursor-pointer bg-gray-800 hover:bg-gray-700 px-3 py-1 rounded border border-gray-600 transition-colors shadow-lg" onclick="togglePause()">
+            [⏸ 일시정지]
+        </div>
+    </div>
+
+    <!-- State 1: Intro -->
+    <div id="intro-screen" class="overlay">
+        <h1 class="text-6xl mb-4 tracking-wider heavy-rounded-title" style="text-align: center; line-height: 1.3;">
+            <span style="color:#5a8f7b">개밤티</span> <span style="color:#ff1a1a">가재</span> <span style="color:#0077ff">피하기</span>
+        </h1>
+        <p class="text-sm leading-6 text-gray-200 mb-4 max-w-sm bg-black/60 p-4 rounded border border-gray-600 shadow-xl">
+            <span class="text-red-400 font-bold">경고:</span> 버려진 의약품(항우울제·신경안정제)으로 인해 바다가 심각하게 오염되었습니다!<br><br>
+            변종 가재들이 수중 생태계를 위협하고 있습니다. 구피가 되어 해로운 의약품 펠렛을 치우고 바다를 정화하세요!
+        </p>
+        <button id="btn-start" onclick="startCleanup()">정화 시작하기</button>
+    </div>
+
+    <!-- State 2: Controls -->
+    <div id="controls-screen" class="overlay solid-overlay hidden">
+        <h2 class="text-2xl text-yellow-300 mb-6 font-bold">조작법 안내</h2>
+        <div class="grid grid-cols-3 gap-2 mb-4 text-sm text-center max-w-[200px]">
+            <div></div><div class="bg-gray-700 p-2 rounded border border-gray-500 font-bold">W</div><div></div>
+            <div class="bg-gray-700 p-2 rounded border border-gray-500 font-bold">A</div>
+            <div class="bg-gray-700 p-2 rounded border border-gray-500 font-bold">S</div>
+            <div class="bg-gray-700 p-2 rounded border border-gray-500 font-bold">D</div>
+        </div>
+        <p class="text-xs text-gray-400 mb-4">(또는 화살표 방향키)</p>
+        
+        <div class="bg-blue-900/50 border border-blue-500 p-3 rounded mb-4 text-center max-w-sm w-full shadow-md">
+            <p class="text-sm text-blue-200 font-bold">게임 중 'P' 키, 'ESC' 키 또는 상단 버튼을 누르면<br>일시정지됩니다.</p>
+        </div>
+
+        <p class="text-sm text-cyan-300 mb-2">작은 펠렛을 먹어 바다를 정화하세요.</p>
+        <p class="text-sm text-purple-400 mb-6 bg-purple-900/40 p-2 rounded max-w-sm">큰 알약을 먹으면 7초간 가재의 변이가 치유되어 역공격할 수 있습니다!</p>
+        <div class="text-3xl text-red-500 animate-pulse mt-2 font-bold">
+            시작까지: <span id="controls-timer">7</span>
+        </div>
+    </div>
+
+    <!-- State 3: Countdown -->
+    <div id="countdown-screen" class="overlay hidden" style="background: rgba(0,0,0,0.6);">
+        <div id="countdown-text" class="text-6xl text-white font-bold" style="text-shadow: 4px 4px 0px #ff0055;">3</div>
+    </div>
+
+    <!-- State 4: Pause Screen -->
+    <div id="pause-screen" class="overlay hidden" style="background: rgba(0,0,0,0.85);">
+        <h1 class="text-4xl text-yellow-400 mb-6 font-bold">게임 일시정지 (PAUSED)</h1>
+        <button onclick="togglePause()">▶ 계속하기</button>
+    </div>
+
+    <!-- State 5: Taunt Popup -->
+    <div id="taunt-popup" class="hidden">
+        <div class="speech-bubble whitespace-pre">ㅋ<br>ㅋㅋ</div>
+        <svg width="50" height="50" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="50" cy="50" rx="30" ry="40" fill="#8B0000"/>
+            <path d="M 20 40 Q 5 20 20 10" stroke="#8B0000" stroke-width="8" stroke-linecap="round" fill="none"/>
+            <path d="M 80 40 Q 95 20 80 10" stroke="#8B0000" stroke-width="8" stroke-linecap="round" fill="none"/>
+            <circle cx="20" cy="10" r="10" fill="#8B0000"/>
+            <circle cx="80" cy="10" r="10" fill="#8B0000"/>
+            <circle cx="35" cy="30" r="6" fill="#00FF00"/>
+            <circle cx="65" cy="30" r="6" fill="#00FF00"/>
+            <path d="M 25 50 L 5 50 M 25 60 L 5 60 M 25 70 L 5 70" stroke="#8B0000" stroke-width="4"/>
+            <path d="M 75 50 L 95 50 M 75 60 L 95 60 M 75 70 L 95 70" stroke="#8B0000" stroke-width="4"/>
+        </svg>
+    </div>
+
+    <!-- State 6: Game Over / Victory -->
+    <div id="game-over-screen" class="overlay solid-overlay hidden">
+        <h1 id="end-title" class="text-4xl text-red-500 mb-4 font-bold text-center">생태계 파괴<br><span class="text-2xl text-red-400">(ECOLOGICAL COLLAPSE)</span></h1>
+        <p id="end-score" class="text-lg mb-6">최종 점수: 0</p>
+        <button onclick="location.reload()">다시 시작</button>
+    </div>
+
+    <canvas id="gameCanvas" width="456" height="552"></canvas>
+</div>
+
+<script>
+    /* =========================================================================
+       AUDIO SYSTEM (Strict Web Audio API per spec)
+    ========================================================================= */
+    let audioCtx = null;
+    
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+
+    function playSound(type) {
+        if (!audioCtx || audioCtx.state !== 'running') return;
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        const now = audioCtx.currentTime;
+        if (type === 'eat') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(600, now);
+            osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+            gainNode.gain.setValueAtTime(0.1, now);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now);
+            osc.stop(now + 0.1);
+        } else if (type === 'power') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(300, now);
+            osc.frequency.linearRampToValueAtTime(600, now + 0.3);
+            gainNode.gain.setValueAtTime(0.1, now);
+            gainNode.gain.linearRampToValueAtTime(0.01, now + 0.3);
+            osc.start(now);
+            osc.stop(now + 0.3);
+        } else if (type === 'die') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(200, now);
+            osc.frequency.exponentialRampToValueAtTime(50, now + 0.5);
+            gainNode.gain.setValueAtTime(0.2, now);
+            gainNode.gain.linearRampToValueAtTime(0.01, now + 0.5);
+            osc.start(now);
+            osc.stop(now + 0.5);
+        } else if (type === 'eat_ghost') {
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.exponentialRampToValueAtTime(200, now + 0.2);
+            gainNode.gain.setValueAtTime(0.2, now);
+            gainNode.gain.linearRampToValueAtTime(0.01, now + 0.2);
+            osc.start(now);
+            osc.stop(now + 0.2);
+        }
+    }
+
+    /* =========================================================================
+       STATE & GLOBALS
+    ========================================================================= */
+    let gameState = 'INTRO'; // INTRO, CONTROLS, COUNTDOWN, PLAYING, PAUSED, TAUNT, GAMEOVER, LEVEL_UP
+    let globalTimers = [];
+    let controlsInterval = null;
+    let requestFrameId = null;
+    let lastTime = 0;
+    
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // UI Helpers (Strict Null Guards)
+    const show = (id) => { const el = document.getElementById(id); if (el) el.classList.remove('hidden'); };
+    const hide = (id) => { const el = document.getElementById(id); if (el) el.classList.add('hidden'); };
+    const updateText = (id, text) => { const el = document.getElementById(id); if (el) el.innerText = text; };
+
+    function clearAllTimers() {
+        globalTimers.forEach(t => clearTimeout(t));
+        globalTimers.forEach(t => clearInterval(t));
+        globalTimers = [];
+        if (controlsInterval) {
+            clearInterval(controlsInterval);
+            controlsInterval = null;
+        }
+    }
+
+    /* Helper: Interpolate Hex Colors for Dynamic Ocean Cleanup */
+    function interpolateColor(color1, color2, factor) {
+        let result = "#";
+        for (let i = 1; i <= 5; i += 2) {
+            let hex1 = parseInt(color1.substring(i, i + 2), 16);
+            let hex2 = parseInt(color2.substring(i, i + 2), 16);
+            let val = Math.round(hex1 + factor * (hex2 - hex1)).toString(16);
+            result += ("0" + val).substring(val.length);
+        }
+        return result;
+    }
+
+    /* =========================================================================
+       SCREEN FLOW & CONTROLLERS (Strict Spec Implementation)
+    ========================================================================= */
+    function startCleanup() {
+        clearAllTimers();
+        initAudio();
+        if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+        
+        game = new Game();
+        updateHUD();
+
+        hide('intro-screen');
+        show('controls-screen');
+        
+        let timeLeft = 7;
+        updateText('controls-timer', timeLeft);
+        
+        controlsInterval = setInterval(() => {
+            if (gameState === 'PAUSED') return; // Pause control timer
+            timeLeft--;
+            updateText('controls-timer', timeLeft);
+            if (timeLeft <= 0) {
+                clearInterval(controlsInterval);
+                controlsInterval = null;
+                hide('controls-screen');
+                startCountdown();
+            }
+        }, 1000);
+    }
+
+    function startCountdown() {
+        gameState = 'COUNTDOWN';
+        show('countdown-screen');
+        let count = 3;
+        updateText('countdown-text', count);
+
+        let countdownInterval = setInterval(() => {
+            if (gameState === 'PAUSED') return; // Pause countdown timer
+            count--;
+            if (count <= 0) {
+                updateText('countdown-text', "시작!");
+                let startDelay = setTimeout(() => {
+                    clearInterval(countdownInterval);
+                    hide('countdown-screen');
+                    gameState = 'PLAYING';
+                    lastTime = performance.now();
+                }, 1000);
+                globalTimers.push(startDelay);
+            } else {
+                updateText('countdown-text', count);
+            }
+        }, 1000);
+        globalTimers.push(countdownInterval);
+    }
+
+    function togglePause() {
+        if (gameState === 'PLAYING' || gameState === 'COUNTDOWN' || gameState === 'CONTROLS') {
+            this.previousState = gameState;
+            gameState = 'PAUSED';
+            show('pause-screen');
+        } else if (gameState === 'PAUSED') {
+            gameState = this.previousState || 'PLAYING';
+            hide('pause-screen');
+            lastTime = performance.now();
+        }
+    }
+
+    function triggerDeathTaunt() {
+        if (gameState === 'TAUNT') return;
+        gameState = 'TAUNT';
+        playSound('die');
+        game.lives--;
+        updateHUD();
+        
+        show('taunt-popup');
+        
+        let tauntTimeout = setTimeout(() => {
+            hide('taunt-popup');
+            if (game.lives > 0) {
+                game.resetPositions();
+                startCountdown();
+            } else {
+                showGameOver();
+            }
+        }, 3000);
+        globalTimers.push(tauntTimeout);
+    }
+
+    function showGameOver() {
+ EcoFX.notify("bad","탐사 종료. 생명과 회수 경로를 확인하고 다시 도전하세요.");
+        gameState = 'GAMEOVER';
+        hide('taunt-popup');
+        show('game-over-screen');
+        updateText('end-score', `최종 점수: ${game.score}`);
+        if (game.dotsRemaining === 0) {
+            const titleEl = document.getElementById('end-title');
+            if(titleEl) {
+                titleEl.innerHTML = "바다 정화 완료!<br><span class='text-xl text-white mt-2 block'>이번 탐사 구역의 회수 목표를 달성했습니다.</span>";
+                titleEl.classList.remove('text-red-500');
+                titleEl.classList.add('text-green-400');
+            }
+        }
+    }
+
+    function levelUp() {
+ EcoFX.notify("win","구역 회수 완료. 다음 구역에서도 위험을 피하며 정화 경로를 만드세요.");
+        gameState = 'LEVEL_UP';
+        game.level++;
+        if (game.level > 10) {
+            showGameOver();
+            return;
+        }
+        game.crayfishBaseSpeed = Math.min(150, game.crayfishBaseSpeed * 1.08); 
+        game.scaredDuration = Math.max(2000, 7000 - (game.level * 500)); 
+        
+        show('countdown-screen');
+        updateText('countdown-text', `레벨 ${game.level}`);
+        
+        let lvlTimeout = setTimeout(() => {
+            hide('countdown-screen');
+            game.initLevel();
+            startCountdown();
+        }, 2000);
+        globalTimers.push(lvlTimeout);
+    }
+
+    /* =========================================================================
+       INTRO SCENE (Polluted Ocean Visual Effects)
+    ========================================================================= */
+    const introScene = {
+        entities: [],
+        init() {
+            for(let i=0; i<8; i++) {
+                this.entities.push({
+                    type: 'pill',
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vy: -10 - Math.random() * 20,
+                    rot: Math.random() * Math.PI * 2,
+                    rotSpeed: (Math.random() - 0.5) * 2
+                });
+            }
+            for(let i=0; i<5; i++) {
+                this.entities.push({
+                    type: 'deadfish',
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 10,
+                    vy: -5 - Math.random() * 10,
+                    time: Math.random() * 100
+                });
+            }
+            for(let i=0; i<3; i++) {
+                this.spawnNormalFish();
+            }
+        },
+        spawnNormalFish() {
+            this.entities.push({
+                type: 'fish',
+                state: 'normal',
+                x: -50,
+                y: 100 + Math.random() * (canvas.height - 200),
+                vx: 30 + Math.random() * 30,
+                time: Math.random() * 100,
+                mutatingTimer: 0
+            });
+        },
+        update(dt) {
+            let pills = this.entities.filter(e => e.type === 'pill');
+
+            for (let i = this.entities.length - 1; i >= 0; i--) {
+                let ent = this.entities[i];
+                ent.time = (ent.time || 0) + dt;
+
+                if (ent.type === 'pill') {
+                    ent.y += ent.vy * dt;
+                    ent.rot += ent.rotSpeed * dt;
+                    if (ent.y < -20) ent.y = canvas.height + 20;
+                } 
+                else if (ent.type === 'deadfish') {
+                    ent.x += ent.vx * dt;
+                    ent.y += ent.vy * dt;
+                    if (ent.y < -50) ent.y = canvas.height + 50;
+                    if (ent.x < -50) ent.x = canvas.width + 50;
+                    if (ent.x > canvas.width + 50) ent.x = -50;
+                }
+                else if (ent.type === 'fish') {
+                    if (ent.state === 'normal') {
+                        ent.x += ent.vx * dt;
+                        ent.y += Math.sin(ent.time * 2) * 10 * dt;
+                        
+                        for (let p of pills) {
+                            if (!p.consumed && Math.hypot(ent.x - p.x, ent.y - p.y) < 20) {
+                                p.consumed = true;
+                                ent.state = 'mutating';
+                                ent.mutatingTimer = 1.5;
+                                break;
+                            }
+                        }
+                    } else if (ent.state === 'mutating') {
+                        ent.mutatingTimer -= dt;
+                        ent.x += (Math.random() - 0.5) * 5;
+                        ent.y += (Math.random() - 0.5) * 5;
+                        if (ent.mutatingTimer <= 0) {
+                            ent.state = 'mutated';
+                            ent.vx *= 1.5;
+                        }
+                    } else if (ent.state === 'mutated') {
+                        ent.x += ent.vx * dt;
+                        ent.y += Math.sin(ent.time * 5) * 20 * dt;
+                    }
+
+                    if (ent.x > canvas.width + 50) {
+                        this.entities.splice(i, 1);
+                        this.spawnNormalFish();
+                    }
+                }
+            }
+            this.entities = this.entities.filter(e => !(e.type === 'pill' && e.consumed));
+            if (this.entities.filter(e => e.type === 'pill').length < 8) {
+                 this.entities.push({
+                    type: 'pill', x: Math.random() * canvas.width, y: canvas.height + 20,
+                    vy: -10 - Math.random() * 20, rot: Math.random() * Math.PI * 2, rotSpeed: (Math.random() - 0.5) * 2
+                });
+            }
+        },
+        draw(ctx) {
+            ctx.fillStyle = '#061313'; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            for (let ent of this.entities) {
+                if (ent.type === 'pill') {
+                    ctx.save();
+                    ctx.translate(ent.x, ent.y);
+                    ctx.rotate(ent.rot);
+                    ctx.fillStyle = '#ff3333';
+                    ctx.beginPath();
+                    ctx.arc(0, -5, 5, Math.PI, 0);
+                    ctx.lineTo(5, 0); ctx.lineTo(-5, 0); ctx.fill();
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(0, 5, 5, 0, Math.PI);
+                    ctx.lineTo(-5, 0); ctx.lineTo(5, 0); ctx.fill();
+                    ctx.restore();
+                } else if (ent.type === 'deadfish') {
+                    ctx.save();
+                    ctx.translate(ent.x, ent.y);
+                    ctx.rotate(Math.PI);
+                    drawGuppyModel(ctx, ent.time, 'dead');
+                    ctx.restore();
+                } else if (ent.type === 'fish') {
+                    ctx.save();
+                    ctx.translate(ent.x, ent.y);
+                    drawGuppyModel(ctx, ent.time, ent.state);
+                    ctx.restore();
+                }
+            }
+        }
+    };
+
+    /* Ultra-Realistic Guppy Model Graphics Function */
+    function drawGuppyModel(ctx, time, state) {
+        let wag = (state === 'dead') ? 0 : Math.sin(time * (state === 'mutated' ? 25 : 15));
+        
+        ctx.save();
+        
+        if (state === 'dead') {
+            // Dead guppy styling
+            ctx.fillStyle = '#4a5c54';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 12, 7, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#888';
+            ctx.beginPath();
+            ctx.arc(6, -2, 3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(4.5, -3.5); ctx.lineTo(7.5, -0.5);
+            ctx.moveTo(7.5, -3.5); ctx.lineTo(4.5, -0.5);
+            ctx.stroke();
+            ctx.restore();
+            return;
+        }
+
+        // Tail waving logic (3-section flow)
+        let tailAngle1 = wag * 0.35;
+
+        // Large vibrant flowing tail fin (Orange & Blue gradient effect)
+        ctx.save();
+        ctx.translate(-8, 0);
+        ctx.rotate(tailAngle1);
+
+        let tailGrad = ctx.createLinearGradient(-16, -12, 0, 12);
+        tailGrad.addColorStop(0, '#ff6600');
+        tailGrad.addColorStop(0.5, '#ff0055');
+        tailGrad.addColorStop(1, '#0088ff');
+
+        ctx.fillStyle = tailGrad;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.bezierCurveTo(-10, -14 + wag*2, -22, -18, -26, -10 + wag*4);
+        ctx.bezierCurveTo(-18, 0, -26, 10 - wag*4, -22, 18);
+        ctx.bezierCurveTo(-10, 14 - wag*2, 0, 0, 0, 0);
+        ctx.fill();
+
+        // Tail fin ray textures
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(0, 0); ctx.lineTo(-24, -8);
+        ctx.moveTo(0, 0); ctx.lineTo(-22, 0);
+        ctx.moveTo(0, 0); ctx.lineTo(-20, 10);
+        ctx.stroke();
+
+        ctx.restore();
+
+        // Dorsal Fin
+        ctx.save();
+        let dorsalGrad = ctx.createLinearGradient(0, -6, 0, -18);
+        dorsalGrad.addColorStop(0, '#ff9900');
+        dorsalGrad.addColorStop(1, '#00aaff');
+        ctx.fillStyle = dorsalGrad;
+        ctx.beginPath();
+        ctx.moveTo(-2, -5);
+        ctx.quadraticCurveTo(-6, -16 + wag*2, 6, -8);
+        ctx.quadraticCurveTo(2, -4, -2, -5);
+        ctx.fill();
+        ctx.restore();
+
+        // Metallic Streamlined Body
+        let bodyGrad = ctx.createLinearGradient(0, -8, 0, 8);
+        if (state === 'mutated') {
+            bodyGrad.addColorStop(0, '#440044');
+            bodyGrad.addColorStop(0.5, '#aa00aa');
+            bodyGrad.addColorStop(1, '#ff0055');
+        } else {
+            bodyGrad.addColorStop(0, '#e0f7fa');
+            bodyGrad.addColorStop(0.4, '#00bcd4');
+            bodyGrad.addColorStop(0.8, '#00838f');
+            bodyGrad.addColorStop(1, '#004d40');
+        }
+
+        ctx.fillStyle = bodyGrad;
+        ctx.beginPath();
+        ctx.ellipse(2, 0, 13, 7.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Iridescent Scale Texture Lines
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = 0.7;
+        for (let i = -6; i <= 6; i += 4) {
+            ctx.beginPath();
+            ctx.arc(i, 0, 4, -Math.PI / 3, Math.PI / 3);
+            ctx.stroke();
+        }
+
+        // Gill Lines
+        ctx.strokeStyle = '#00252e';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(7, 0, 5, Math.PI * 0.6, Math.PI * 1.3);
+        ctx.stroke();
+
+        // Detailed Realistic Eye
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(8, -2, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Eye Pupil with Metallic Reflective Sparkle
+        ctx.fillStyle = (state === 'mutated') ? '#ff0000' : '#051d2d';
+        ctx.beginPath();
+        ctx.arc(8.5, -2, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(9.3, -2.8, 0.8, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+
+    /* Grotesque Mutated Crayfish Graphics Function */
+    function drawCrayfish(ctx, x, y, type, state, time) {
+        ctx.save();
+        ctx.translate(x, y);
+
+        let isScared = (state === 'scared');
+        let isEaten = (state === 'eaten');
+
+        // Color styling
+        let darkColor = '#4a0808';
+        let mainColor = '#8a0000';
+        let highlightColor = '#ff2222';
+
+        if (isScared) {
+            let flash = (time * 10 % 2 > 1 && game.scaredTime < 2000);
+            mainColor = flash ? '#ffffff' : '#0055ff';
+            darkColor = flash ? '#aaaaaa' : '#001166';
+            highlightColor = flash ? '#ffffff' : '#00aaff';
+        }
+
+        // Grotesque Jitter Animation
+        let jitterX = (Math.sin(time * 40) * 1.5);
+        let jitterY = (Math.cos(time * 35) * 1.5);
+        ctx.translate(jitterX, jitterY);
+
+        if (!isEaten) {
+            // 1. Long Creepy Twitching Antennae
+            ctx.strokeStyle = highlightColor;
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(-4, -10);
+            ctx.quadraticCurveTo(-15, -28 + Math.sin(time * 15) * 6, -22, -35 + Math.cos(time * 20) * 8);
+            ctx.moveTo(4, -10);
+            ctx.quadraticCurveTo(15, -28 + Math.cos(time * 15) * 6, 22, -35 + Math.sin(time * 20) * 8);
+            ctx.stroke();
+
+            // 2. 8 Spidery Creepy Legs
+            ctx.strokeStyle = darkColor;
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 4; i++) {
+                let yOff = -4 + i * 4;
+                let legWagL = Math.sin(time * 25 + i) * 5;
+                let legWagR = Math.cos(time * 25 + i) * 5;
+
+                // Left legs
+                ctx.beginPath();
+                ctx.moveTo(-6, yOff);
+                ctx.lineTo(-14, yOff + 2 + legWagL);
+                ctx.lineTo(-20, yOff + 8 + legWagL);
+                ctx.stroke();
+
+                // Right legs
+                ctx.beginPath();
+                ctx.moveTo(6, yOff);
+                ctx.lineTo(14, yOff + 2 + legWagR);
+                ctx.lineTo(20, yOff + 8 + legWagR);
+                ctx.stroke();
+            }
+
+            // 3. Monstrous Giant Claws (Pincers)
+            ctx.fillStyle = mainColor;
+            ctx.strokeStyle = darkColor;
+            ctx.lineWidth = 1.5;
+
+            // Left Claw
+            ctx.save();
+            ctx.translate(-10, -8);
+            ctx.rotate(-0.3 + Math.sin(time * 12) * 0.15);
+            ctx.beginPath();
+            ctx.ellipse(0, -8, 6, 10, -0.2, 0, Math.PI * 2);
+            ctx.fill(); ctx.stroke();
+            // Sharp Pincer tip
+            ctx.beginPath();
+            ctx.moveTo(-3, -16); ctx.lineTo(-6, -24); ctx.lineTo(0, -18);
+            ctx.fill(); ctx.stroke();
+            ctx.restore();
+
+            // Right Claw
+            ctx.save();
+            ctx.translate(10, -8);
+            ctx.rotate(0.3 - Math.sin(time * 12) * 0.15);
+            ctx.beginPath();
+            ctx.ellipse(0, -8, 6, 10, 0.2, 0, Math.PI * 2);
+            ctx.fill(); ctx.stroke();
+            // Sharp Pincer tip
+            ctx.beginPath();
+            ctx.moveTo(3, -16); ctx.lineTo(6, -24); ctx.lineTo(0, -18);
+            ctx.fill(); ctx.stroke();
+            ctx.restore();
+
+            // 4. Bumpy Grotesque Body Carapace
+            ctx.fillStyle = mainColor;
+            ctx.beginPath();
+            ctx.ellipse(0, 2, 9, 13, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Bumpy Texture Details
+            ctx.fillStyle = darkColor;
+            ctx.beginPath();
+            ctx.arc(-3, 0, 2, 0, Math.PI * 2);
+            ctx.arc(3, 4, 1.8, 0, Math.PI * 2);
+            ctx.arc(-2, 7, 2.2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // 5. Ominous Bloodshot Eyes
+        ctx.fillStyle = isScared ? '#ffffff' : '#ff0000';
+        ctx.beginPath();
+        ctx.arc(-4, -6, 3, 0, Math.PI * 2);
+        ctx.arc(4, -6, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = isScared ? '#0000ff' : '#000000';
+        ctx.beginPath();
+        ctx.arc(-4, -6, 1.2, 0, Math.PI * 2);
+        ctx.arc(4, -6, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+
+    /* =========================================================================
+       GAME ENGINE & LOGIC
+    ========================================================================= */
+    const TILE_SIZE = 24;
+    const COLS = 19;
+    const ROWS = 23;
+
+    const UP = {x: 0, y: -1}; const DOWN = {x: 0, y: 1};
+    const LEFT = {x: -1, y: 0}; const RIGHT = {x: 1, y: 0};
+    const NONE = {x: 0, y: 0};
+
+    const initialMap = [
+        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,0],
+        [0,2,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,2,0],
+        [0,1,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,1,0],
+        [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+        [0,1,0,0,1,0,1,0,0,0,0,0,1,0,1,0,0,1,0],
+        [0,1,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,1,0],
+        [0,0,0,0,1,0,0,0,3,0,3,0,0,0,1,0,0,0,0],
+        [3,3,3,0,1,0,3,3,3,3,3,3,3,0,1,0,3,3,3],
+        [0,0,0,0,1,0,3,0,0,4,0,0,3,0,1,0,0,0,0],
+        [3,3,3,3,1,3,3,0,3,3,3,0,3,3,1,3,3,3,3],
+        [0,0,0,0,1,0,3,0,0,0,0,0,3,0,1,0,0,0,0],
+        [3,3,3,0,1,0,3,3,3,3,3,3,3,0,1,0,3,3,3],
+        [0,0,0,0,1,0,3,0,0,0,0,0,3,0,1,0,0,0,0],
+        [0,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,0],
+        [0,1,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,1,0],
+        [0,2,1,0,1,1,1,1,1,3,1,1,1,1,1,0,1,2,0],
+        [0,0,1,0,1,0,1,0,0,0,0,0,1,0,1,0,1,0,0],
+        [0,1,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,1,0],
+        [0,1,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,0],
+        [0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+    ];
+
+    class Game {
+        constructor() {
+            this.map = [];
+            this.score = 0;
+            this.lives = 3;
+            this.level = 1;
+            this.dotsRemaining = 0;
+            this.scaredTime = 0;
+            this.scaredDuration = 7000;
+            this.celebrationTime = 0;
+            
+            this.player = {
+                x: 9 * TILE_SIZE + TILE_SIZE/2,
+                y: 16 * TILE_SIZE + TILE_SIZE/2,
+                dir: NONE,
+                nextDir: NONE,
+                speed: 120,
+                time: 0
+            };
+            
+            this.crayfishBaseSpeed = 80;
+            this.ghosts = [];
+            this.elapsedTime = 0;
+
+            // Environmental Particles for Dynamic Cleanup Background
+            this.bgParticles = [];
+            for (let i = 0; i < 25; i++) {
+                this.bgParticles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: 1 + Math.random() * 3,
+                    speedY: -5 - Math.random() * 15,
+                    type: Math.random() > 0.5 ? 'toxic_dust' : 'dead_debris'
+                });
+            }
+
+            this.initLevel();
+        }
+
+        initLevel() {
+            this.map = initialMap.map(row => [...row]);
+            this.dotsRemaining = 0;
+            for(let r=0; r<ROWS; r++) {
+                for(let c=0; c<COLS; c++) {
+                    if (this.map[r] && (this.map[r][c] === 1 || this.map[r][c] === 2)) {
+                        this.dotsRemaining++;
+                    }
+                }
+            }
+            this.resetPositions();
+        }
+
+        resetPositions() {
+            this.player.x = 9 * TILE_SIZE + TILE_SIZE/2;
+            this.player.y = 16 * TILE_SIZE + TILE_SIZE/2;
+            this.player.dir = NONE;
+            this.player.nextDir = NONE;
+            
+            const ghostTypes = ['red', 'pink', 'cyan', 'orange'];
+            const startPositions = [{x: 9, y: 8}, {x: 8, y: 10}, {x: 9, y: 10}, {x: 10, y: 10}];
+
+            // Active ghosts count based on level requirements:
+            // Lvl 1-2: 1 ghost | Lvl 3-5: 2 ghosts | Lvl 6-8: 3 ghosts | Lvl 9-10: 4 ghosts
+            let activeCount = 1;
+            if (this.level >= 9) activeCount = 4;
+            else if (this.level >= 6) activeCount = 3;
+            else if (this.level >= 3) activeCount = 2;
+
+            this.ghosts = [];
+            for (let i = 0; i < ghostTypes.length; i++) {
+                let type = ghostTypes[i];
+                let isSpawned = i < activeCount;
+                this.ghosts.push({
+                    x: startPositions[i].x * TILE_SIZE + TILE_SIZE/2,
+                    y: startPositions[i].y * TILE_SIZE + TILE_SIZE/2,
+                    type: type,
+                    dir: isSpawned ? UP : NONE,
+                    nextDir: isSpawned ? UP : NONE,
+                    state: isSpawned ? 'normal' : 'disabled',
+                    active: isSpawned,
+                    time: Math.random() * 10
+                });
+            }
+            this.scaredTime = 0;
+        }
+
+        isWall(c, r) {
+            if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return true;
+            return this.map[r][c] === 0 || this.map[r][c] === 4;
+        }
+
+        moveEntity(ent, dt, speed, isPlayer) {
+            if (ent.dir === NONE && ent.nextDir !== NONE) ent.dir = ent.nextDir;
+            
+            let dx = ent.dir.x * speed * dt;
+            let dy = ent.dir.y * speed * dt;
+            let newX = ent.x + dx;
+            let newY = ent.y + dy;
+
+            if (newX < 0) newX = canvas.width;
+            if (newX > canvas.width) newX = 0;
+
+            let gridX = Math.floor(ent.x / TILE_SIZE);
+            let gridY = Math.floor(ent.y / TILE_SIZE);
+            let centerX = gridX * TILE_SIZE + TILE_SIZE/2;
+            let centerY = gridY * TILE_SIZE + TILE_SIZE/2;
+
+            let passedCenter = false;
+            if (ent.dir.x > 0 && ent.x <= centerX && newX >= centerX) passedCenter = true;
+            if (ent.dir.x < 0 && ent.x >= centerX && newX <= centerX) passedCenter = true;
+            if (ent.dir.y > 0 && ent.y <= centerY && newY >= centerY) passedCenter = true;
+            if (ent.dir.y < 0 && ent.y <= centerY && newY <= centerY) passedCenter = true;
+            
+            if (passedCenter) {
+                if (ent.nextDir !== NONE && (ent.nextDir.x !== ent.dir.x || ent.nextDir.y !== ent.dir.y)) {
+                    let testCol = gridX + ent.nextDir.x;
+                    let testRow = gridY + ent.nextDir.y;
+                    if (!this.isWall(testCol, testRow)) {
+                        ent.x = centerX; ent.y = centerY;
+                        ent.dir = ent.nextDir;
+                        let distRemaining = Math.abs((ent.dir.x !== 0) ? (newX - centerX) : (newY - centerY));
+                        ent.x += ent.dir.x * distRemaining;
+                        ent.y += ent.dir.y * distRemaining;
+                        return;
+                    }
+                }
+                
+                let nextCol = gridX + ent.dir.x;
+                let nextRow = gridY + ent.dir.y;
+                if (this.isWall(nextCol, nextRow)) {
+                    ent.x = centerX; ent.y = centerY;
+                    if (isPlayer) ent.dir = NONE; 
+                    else ent.dir = NONE; 
+                    return;
+                }
+            }
+            ent.x = newX; ent.y = newY;
+        }
+
+        updateAI(dt) {
+            const homeX = 9 * TILE_SIZE + TILE_SIZE/2;
+            const homeY = 10 * TILE_SIZE + TILE_SIZE/2;
+
+            for (let ghost of this.ghosts) {
+                if (!ghost.active || ghost.state === 'disabled') continue;
+
+                ghost.time += dt;
+                let speed = (ghost.state === 'scared') ? this.crayfishBaseSpeed * 0.6 : this.crayfishBaseSpeed;
+                if (ghost.state === 'eaten') speed = this.crayfishBaseSpeed * 2.0; // 2x speed when eaten
+                
+                if (ghost.dir === NONE) {
+                     let gridX = Math.floor(ghost.x / TILE_SIZE);
+                     let gridY = Math.floor(ghost.y / TILE_SIZE);
+                     let validDirs = [UP, DOWN, LEFT, RIGHT].filter(d => !this.isWall(gridX + d.x, gridY + d.y));
+                     if (validDirs.length > 0) ghost.nextDir = validDirs[Math.floor(Math.random() * validDirs.length)];
+                } else {
+                    let gridX = Math.floor(ghost.x / TILE_SIZE);
+                    let gridY = Math.floor(ghost.y / TILE_SIZE);
+                    let centerX = gridX * TILE_SIZE + TILE_SIZE/2;
+                    let centerY = gridY * TILE_SIZE + TILE_SIZE/2;
+
+                    if (Math.abs(ghost.x - centerX) < 2 && Math.abs(ghost.y - centerY) < 2) {
+                         let validDirs = [UP, DOWN, LEFT, RIGHT].filter(d => {
+                            if (d.x === -ghost.dir.x && d.y === -ghost.dir.y) return false; 
+                            return !this.isWall(gridX + d.x, gridY + d.y);
+                         });
+
+                         if (validDirs.length > 0) {
+                             if (ghost.state === 'eaten') {
+                                 // STRICT EATEN RETURN AI: Move towards Center Base (Col 9, Row 10)
+                                 let bestDir = validDirs[0];
+                                 let minD = Infinity;
+                                 for (let d of validDirs) {
+                                     let nx = (gridX + d.x) * TILE_SIZE + TILE_SIZE/2;
+                                     let ny = (gridY + d.y) * TILE_SIZE + TILE_SIZE/2;
+                                     let dist = Math.pow(nx - homeX, 2) + Math.pow(ny - homeY, 2);
+                                     if (dist < minD) { minD = dist; bestDir = d; }
+                                 }
+                                 ghost.nextDir = bestDir;
+                             } else if (ghost.state === 'scared') {
+                                 ghost.nextDir = validDirs[Math.floor(Math.random() * validDirs.length)];
+                             } else {
+                                 let bestDir = validDirs[0];
+                                 let minD = Infinity;
+                                 if (ghost.type === 'orange' || (ghost.type === 'pink' && Math.random() > 0.5)) {
+                                     bestDir = validDirs[Math.floor(Math.random() * validDirs.length)];
+                                 } else {
+                                    for (let d of validDirs) {
+                                        let nx = (gridX + d.x) * TILE_SIZE;
+                                        let ny = (gridY + d.y) * TILE_SIZE;
+                                        let dist = Math.pow(nx - this.player.x, 2) + Math.pow(ny - this.player.y, 2);
+                                        if (dist < minD) { minD = dist; bestDir = d; }
+                                    }
+                                 }
+                                 ghost.nextDir = bestDir;
+                             }
+                         }
+                    }
+                }
+                this.moveEntity(ghost, dt, speed, false);
+            }
+        }
+
+        update(dt) {
+            this.elapsedTime += dt * 1000;
+            this.player.time += dt;
+            this.moveEntity(this.player, dt, this.player.speed, true);
+
+            // Update background floating particles
+            for (let p of this.bgParticles) {
+                p.y += p.speedY * dt;
+                if (p.y < -10) p.y = canvas.height + 10;
+            }
+
+            let pCol = Math.floor(this.player.x / TILE_SIZE);
+            let pRow = Math.floor(this.player.y / TILE_SIZE);
+            if (pRow >= 0 && pRow < ROWS && pCol >= 0 && pCol < COLS) {
+                if (this.map[pRow][pCol] === 1) {
+                    this.map[pRow][pCol] = 3;
+                    this.score += 10;
+ EcoFX.notify("good","오염 조각 회수 → 점수 +10, 남은 회수 대상 감소");
+                    this.dotsRemaining--;
+                    playSound('eat');
+                    updateHUD();
+                } else if (this.map[pRow][pCol] === 2) {
+                    this.map[pRow][pCol] = 3;
+                    this.score += 50;
+                    this.dotsRemaining--;
+                    this.scaredTime = this.scaredDuration;
+                    this.celebrationTime = 5000;
+                    playSound('power');
+                    this.ghosts.forEach(g => { 
+                        if(g.state !== 'eaten') g.state = 'scared';
+                        g.dir = {x: -g.dir.x, y: -g.dir.y};
+                        g.nextDir = g.dir;
+                    });
+                    updateHUD();
+                }
+            }
+
+            if (this.scaredTime > 0) {
+                this.scaredTime -= dt * 1000;
+                if (this.scaredTime <= 0) this.ghosts.forEach(g => { if(g.state === 'scared' && g.active) g.state = 'normal'; });
+            }
+            if (this.celebrationTime > 0) {
+                this.celebrationTime -= dt * 1000;
+            }
+
+            if (this.dotsRemaining <= 0) {
+                levelUp();
+                return;
+            }
+
+            this.updateAI(dt);
+
+            const hitDist = TILE_SIZE * 0.7;
+            for (let ghost of this.ghosts) {
+                if (!ghost.active || ghost.state === 'disabled') continue;
+
+                let dist = Math.hypot(ghost.x - this.player.x, ghost.y - this.player.y);
+                if (dist < hitDist) {
+                    if (ghost.state === 'scared') {
+                        ghost.state = 'eaten';
+                        this.score += 200;
+                        playSound('eat_ghost');
+                        updateHUD();
+                    } else if (ghost.state === 'normal') {
+                        triggerDeathTaunt();
+                        return;
+                    }
+                }
+                
+                // Immediate revival when eaten crayfish reaches center cage
+                if (ghost.state === 'eaten') {
+                    let centerDist = Math.hypot(ghost.x - (9*TILE_SIZE+TILE_SIZE/2), ghost.y - (10*TILE_SIZE+TILE_SIZE/2));
+                    if (centerDist <= TILE_SIZE) {
+                        ghost.state = 'normal';
+                    }
+                }
+            }
+        }
+
+        draw() {
+            // DYNAMIC OCEAN CLEANUP BACKGROUND RENDERER
+            // Interpolate background color from Level 1 (Polluted Dark Murky) to Level 10 (Clear Ocean Aqua)
+            let cleanupFactor = Math.min(1.0, (this.level - 1) / 9);
+            
+            // Background Base Color Interpolation
+            let startBg = "#101a12"; // Murky dark green-brown
+            let endBg = "#022b42";   // Crystal pure aqua deep ocean
+            let currentBgColor = interpolateColor(startBg, endBg, cleanupFactor);
+
+            ctx.fillStyle = currentBgColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Level 10 Special Sunbeam Effect
+            if (this.level === 10) {
+                ctx.save();
+                let rayGrad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                rayGrad.addColorStop(0, 'rgba(255, 255, 255, 0.15)');
+                rayGrad.addColorStop(0.5, 'rgba(0, 255, 200, 0.05)');
+                rayGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = rayGrad;
+                ctx.beginPath();
+                ctx.moveTo(50, 0); ctx.lineTo(200, 0); ctx.lineTo(canvas.width, canvas.height); ctx.lineTo(0, canvas.height);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // Draw Dynamic Floating Environmental Particles (Count decreases as ocean cleanses)
+            let activeParticleCount = Math.floor(this.bgParticles.length * (1 - cleanupFactor * 0.85));
+            for (let i = 0; i < activeParticleCount; i++) {
+                let p = this.bgParticles[i];
+                ctx.fillStyle = cleanupFactor > 0.5 ? 'rgba(0, 255, 200, 0.3)' : 'rgba(150, 50, 30, 0.4)';
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Maze Walls Styling Adapts to Ocean Cleansing state
+            let wallBorderColor = interpolateColor("#0a3a40", "#0088aa", cleanupFactor);
+            let wallFillColor = interpolateColor("#05191c", "#011627", cleanupFactor);
+
+            for(let r=0; r<ROWS; r++) {
+                for(let c=0; c<COLS; c++) {
+                    let tile = this.map[r] && this.map[r][c];
+                    let x = c * TILE_SIZE;
+                    let y = r * TILE_SIZE;
+
+                    if (tile === 0) {
+                        ctx.fillStyle = wallBorderColor;
+                        ctx.fillRect(x, y, TILE_SIZE, TILE_SIZE);
+                        ctx.fillStyle = wallFillColor;
+                        ctx.fillRect(x+2, y+2, TILE_SIZE-4, TILE_SIZE-4);
+                    } else if (tile === 4) {
+                        ctx.fillStyle = '#333';
+                        ctx.fillRect(x, y + TILE_SIZE/2 - 2, TILE_SIZE, 4);
+                    } else if (tile === 1) {
+                        ctx.fillStyle = '#00ffcc';
+                        ctx.beginPath();
+                        ctx.arc(x + TILE_SIZE/2, y + TILE_SIZE/2, 3, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else if (tile === 2) {
+                        let pulse = Math.abs(Math.sin(this.elapsedTime / 200)) * 2;
+                        ctx.fillStyle = '#ff33ff';
+                        ctx.beginPath();
+                        ctx.arc(x + TILE_SIZE/2, y + TILE_SIZE/2, 6 + pulse, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            }
+
+            // Draw player
+            ctx.save();
+            ctx.translate(this.player.x, this.player.y);
+            let angle = 0;
+            if (this.player.dir === LEFT) angle = Math.PI;
+            else if (this.player.dir === UP) angle = -Math.PI/2;
+            else if (this.player.dir === DOWN) angle = Math.PI/2;
+            ctx.rotate(angle);
+            drawGuppyModel(ctx, this.player.time, 'normal');
+            ctx.restore();
+            
+            for (let ghost of this.ghosts) {
+                if (ghost.active && ghost.state !== 'disabled') {
+                    drawCrayfish(ctx, ghost.x, ghost.y, ghost.type, ghost.state, ghost.time);
+                }
+            }
+
+            if (this.celebrationTime > 0) {
+                let alpha = this.celebrationTime < 1000 ? this.celebrationTime / 1000 : 1;
+                ctx.globalAlpha = alpha;
+                let cTime = this.elapsedTime / 1000;
+                let corners = [
+                    {x: TILE_SIZE*2, y: TILE_SIZE*2, rot: Math.PI/4},
+                    {x: canvas.width - TILE_SIZE*2, y: TILE_SIZE*2, rot: -Math.PI/4 - Math.PI/2},
+                    {x: TILE_SIZE*2, y: canvas.height - TILE_SIZE*2, rot: -Math.PI/4},
+                    {x: canvas.width - TILE_SIZE*2, y: canvas.height - TILE_SIZE*2, rot: Math.PI/4 + Math.PI/2}
+                ];
+                corners.forEach(c => {
+                    ctx.save();
+                    ctx.translate(c.x, c.y);
+                    ctx.rotate(c.rot + Math.sin(cTime*5)*0.2);
+                    drawGuppyModel(ctx, cTime, 'normal');
+                    ctx.restore();
+                });
+                ctx.globalAlpha = 1.0;
+            }
+        }
+    }
+
+    /* =========================================================================
+       INPUT & GAME LOOP STARTUP
+    ========================================================================= */
+    let game;
+    
+    function updateHUD() {
+        if (!game) return;
+        updateText('score-display', `점수: ${game.score}`);
+        updateText('level-display', `LVL: ${game.level}`);
+        let hearts = "";
+        for(let i=0; i<game.lives; i++) hearts += "♥";
+        updateText('lives-display', hearts);
+    }
+    updateHUD();
+    
+    introScene.init();
+
+    window.addEventListener('keydown', (e) => {
+        const validMovementKeys = ['w','a','s','d','W','A','S','D','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
+        const pauseKeys = ['p', 'P', 'Escape'];
+
+        if (pauseKeys.includes(e.key)) {
+            e.preventDefault();
+            togglePause();
+            return;
+        }
+
+        if (validMovementKeys.includes(e.key) && gameState === 'PLAYING') {
+            e.preventDefault();
+            
+            if (!game || !game.player) return;
+
+            const key = e.key.toLowerCase();
+            if (key === 'w' || key === 'arrowup') game.player.nextDir = UP;
+            if (key === 's' || key === 'arrowdown') game.player.nextDir = DOWN;
+            if (key === 'a' || key === 'arrowleft') game.player.nextDir = LEFT;
+            if (key === 'd' || key === 'arrowright') game.player.nextDir = RIGHT;
+        }
+    });
+
+    function gameLoop(timestamp) {
+        let dt = (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
+        if (dt > 0.1) dt = 0.1;
+
+        if (gameState === 'PAUSED') {
+            // Strictly freeze canvas rendering update loops when paused
+            requestFrameId = requestAnimationFrame(gameLoop);
+            return;
+        }
+
+        if (gameState === 'INTRO') {
+            introScene.update(dt);
+            introScene.draw(ctx);
+        } else {
+            if (gameState === 'PLAYING') {
+                game.update(dt);
+            }
+            if (gameState !== 'GAMEOVER') {
+                game.draw();
+            }
+        }
+
+        requestFrameId = requestAnimationFrame(gameLoop);
+    }
+
+    lastTime = performance.now();
+    requestFrameId = requestAnimationFrame(gameLoop);
+
+</script>
+<script>
+EcoFX.mount({title:"수생태계 회수 경로",goal:"조각 회수 → 남은 대상 감소 → 구역 전환",note:"돌연변이와 강화 아이템은 허구입니다. 외래종이나 수질 문제를 약 한 알로 해결할 수는 없습니다.",read:()=>({label:'남은 조각 '+(game?.dotsRemaining??0)+' · 기록',progress:Math.min(100,Math.max(0,((game?.level??1)-1)*10)),detail:'구역 '+(game?.level??1)+' · 남은 조각 '+(game?.dotsRemaining??0)+' · 점수 '+(game?.score??0)+'. 막대는 10구역 기준 진행도를 보여줍니다.'}),actions:[]});
+</script>
+</body>
+</html>

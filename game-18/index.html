@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta name="referrer" content="no-referrer">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>백룸: 오염된 미로</title>
+    <link rel="stylesheet" href="vendor/tailwind.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+        
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050505;
+            font-family: 'Noto Sans KR', sans-serif;
+            touch-action: none; /* Prevent zooming/scrolling on mobile */
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        
+        canvas {
+            display: block;
+        }
+        
+        /* Custom UI Styling */
+        .glass-panel {
+            background: rgba(10, 10, 15, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(255, 255, 255, 0.02);
+        }
+        
+        .crt-overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+            background-size: 100% 4px;
+            z-index: 10;
+            opacity: 0.3;
+        }
+
+        /* Virtual Joystick */
+        #joystick-zone {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            display: none;
+            pointer-events: none;
+            z-index: 20;
+        }
+        #joystick-knob {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(200, 200, 200, 0.4);
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Bar Animations */
+        .bar-transition {
+            transition: width 0.2s ease-out, background-color 0.3s;
+        }
+
+        /* Pulse for low filter */
+        @keyframes pulse-red {
+            0%, 100% { box-shadow: 0 0 15px rgba(220, 38, 38, 0); }
+            50% { box-shadow: 0 0 25px rgba(220, 38, 38, 0.6); }
+        }
+        .warning-pulse {
+            animation: pulse-red 1s infinite;
+        }
+    </style>
+<style>.hidden { display: none !important; }</style>
+<script src="eco-feedback.js"></script>
+</head>
+<body class="text-white">
+
+    <!-- Game Canvas -->
+    <canvas id="gameCanvas"></canvas>
+    
+    <!-- CRT Scanline Effect -->
+    <div class="crt-overlay"></div>
+
+    <!-- Virtual Joystick -->
+    <div id="joystick-zone"><div id="joystick-knob"></div></div>
+
+    <!-- UI Overlay (HUD) -->
+    <div id="hud" class="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 z-20 hidden">
+        <div class="w-full max-w-md mx-auto space-y-3 drop-shadow-lg">
+            
+            <!-- Level Info -->
+            <div class="text-center font-black text-gray-400 tracking-widest text-sm" id="levelDisplay">
+                구역 1
+            </div>
+
+            <!-- HP Bar -->
+            <div class="flex items-center gap-3 glass-panel p-2 rounded-lg">
+                <span class="font-black text-red-500 text-sm tracking-wider w-10 text-center">체력</span>
+                <div class="flex-1 h-4 bg-gray-900 rounded-full border border-gray-700 overflow-hidden shadow-inner">
+                    <div id="hpBar" class="h-full bg-red-600 bar-transition w-full shadow-[0_0_10px_rgba(220,38,38,0.8)]"></div>
+                </div>
+            </div>
+            
+            <!-- Filter Bar -->
+            <div class="flex items-center gap-3 glass-panel p-2 rounded-lg" id="filterContainer">
+                <span class="font-black text-cyan-400 text-sm tracking-wider w-10 text-center">필터</span>
+                <div class="flex-1 h-4 bg-gray-900 rounded-full border border-gray-700 overflow-hidden shadow-inner">
+                    <div id="filterBar" class="h-full bg-cyan-400 bar-transition w-full shadow-[0_0_10px_rgba(34,211,238,0.8)]"></div>
+                </div>
+            </div>
+
+            <div id="warningText" class="text-center text-red-500 font-bold text-xs animate-pulse opacity-0 transition-opacity">
+                경고: 필터 교체 필요! 체력 감소 중!
+            </div>
+            
+            <div id="dynamicWarning" class="text-center font-black text-red-400 bg-red-950/80 p-2 rounded-lg border border-red-500 opacity-0 transition-opacity duration-300 drop-shadow-md">
+                ⚠️ 오염 물질이 추가 유입되었습니다! ⚠️
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="startScreen" class="absolute inset-0 flex items-center justify-center bg-black/90 backdrop-blur-sm z-50 transition-opacity duration-500">
+        <div class="glass-panel p-8 rounded-2xl max-w-md w-full text-center border-t-4 border-yellow-500">
+            <h1 class="text-4xl font-black mb-2 text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-600 tracking-tighter">백룸: 오염된 미로</h1>
+            <p class="text-yellow-200 font-bold text-sm mb-6">끝없는 노란색 방의 공포</p>
+            
+            <div class="text-left bg-black/50 p-4 rounded-xl mb-6 text-sm text-gray-300 space-y-3 border border-white/5">
+                <p class="leading-relaxed">당신은 축축한 카펫 냄새가 나는 끝없는 <span class="text-yellow-400 font-bold">노란 미로(Backrooms)</span>에 갇혔습니다. 오염 물질을 피해 <span class="text-green-400 font-bold">비상구(Exit)</span>를 찾아 다음 구역으로 탈출하십시오.</p>
+                <hr class="border-gray-800">
+                <ul class="space-y-2">
+                    <li class="flex items-center gap-2"><div class="w-3 h-3 bg-cyan-400 rounded-full shadow-[0_0_8px_#22d3ee]"></div> <span class="text-cyan-300">방독면 필터:</span> 시간이 지남에 따라 감소. 고갈 시 체력 감소.</li>
+                    <li class="flex items-center gap-2"><div class="w-3 h-3 bg-purple-500 rounded-sm"></div> <span class="text-purple-400">독성 화학물질:</span> 밟으면 지속적인 체력 감소 (보라색 웅덩이)</li>
+                    <li class="flex items-center gap-2"><div class="w-3 h-3 bg-red-500 rounded-full opacity-70"></div> <span class="text-red-400">미세플라스틱 안개:</span> 접촉 시 필터 수명 급감 (붉은색 안개)</li>
+                    <li class="flex items-center gap-2"><div class="w-3 h-3 bg-stone-800 rounded-sm"></div> <span class="text-stone-400">기름 슬라임:</span> 이동 속도 대폭 감소 (검은색/갈색 바닥)</li>
+                    <li class="flex items-center gap-2"><div class="w-3 h-3 bg-gray-400 rounded-full"></div> <span class="text-gray-400">중금속 찌꺼기:</span> 플레이어를 추적하는 괴물 (회색)</li>
+                </ul>
+                <hr class="border-gray-800">
+                <p class="text-center font-bold text-yellow-500">조작: WASD / 방향키 / 화면 터치 드래그</p>
+            </div>
+            
+            <button id="startBtn" class="w-full py-4 bg-yellow-600 hover:bg-yellow-500 text-white font-black text-lg rounded-xl shadow-[0_0_20px_rgba(202,138,4,0.4)] transition transform hover:scale-105 active:scale-95">
+                미로 진입 (시작)
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameOverScreen" class="absolute inset-0 flex items-center justify-center bg-red-950/90 backdrop-blur-md z-50 hidden opacity-0 transition-opacity duration-500">
+        <div class="glass-panel p-8 rounded-2xl max-w-sm w-full text-center border-t-4 border-red-600">
+            <h2 class="text-4xl font-black mb-2 text-red-500 drop-shadow-[0_0_10px_rgba(220,38,38,0.8)]">치명적 오염</h2>
+            <p class="text-red-200 mb-6 font-bold">생명 유지 장치 정지.</p>
+            
+            <div class="bg-black/50 p-4 rounded-xl mb-6 text-gray-300">
+                도달한 구역: <span id="finalLevel" class="text-2xl font-black text-white ml-2">1</span>
+            </div>
+            
+            <button id="restartBtn" class="w-full py-4 bg-red-700 hover:bg-red-600 text-white font-black text-lg rounded-xl shadow-[0_0_20px_rgba(185,28,28,0.5)] transition transform hover:scale-105 active:scale-95">
+                재도전
+            </button>
+        </div>
+    </div>
+    
+    <!-- Level Transition Screen -->
+    <div id="transitionScreen" class="absolute inset-0 flex flex-col items-center justify-center bg-black z-40 hidden opacity-0 transition-opacity duration-1000">
+        <h2 class="text-4xl font-black text-cyan-400 tracking-widest drop-shadow-[0_0_15px_rgba(34,211,238,0.8)] mb-4">구역 통과</h2>
+        <p class="text-red-500 font-black text-xl mb-2 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]">경고: 오염도 및 난이도 상승!</p>
+        <p class="text-gray-400 font-bold animate-pulse">다음 오염 구역으로 진입 중...</p>
+    </div>
+
+<script>
+/**
+ * Deep Water Survival - Maze Generator & Engine
+ */
+
+// --- Config ---
+const CELL_SIZE = 40;
+const VISIBILITY_RADIUS = 180; // Fog of war size
+const BASE_SPEED = 3.0;
+
+const CONFIG = {
+    MAX_HP: 100,
+    MAX_FILTER: 100,
+    FILTER_DECAY_RATE: 0.05, // per frame (approx 1s = 3 points at 60fps)
+    NO_FILTER_DMG: 0.15,
+    FOG_FILTER_DMG: 0.4,
+    SLIME_DMG: 0.2,
+    ENEMY_DMG: 15, // Burst damage on hit, with i-frames
+    ENEMY_SPEED: 1.2
+};
+
+// --- Game State ---
+const GameState = {
+    canvas: document.getElementById('gameCanvas'),
+    ctx: document.getElementById('gameCanvas').getContext('2d'),
+    width: window.innerWidth,
+    height: window.innerHeight,
+    
+    state: 'MENU', contained:0, // MENU, PLAYING, GAMEOVER, TRANSITION
+    level: 1,
+    mapWidth: 15,
+    mapHeight: 15,
+    
+    grid: [], // 2D array: 1 = wall, 0 = floor
+    
+    // Camera
+    camX: 0, camY: 0,
+    
+    hazardSpawnTimer: 0,
+    
+    // Inputs
+    keys: { w:false, a:false, s:false, d:false, arrowup:false, arrowdown:false, arrowleft:false, arrowright:false },
+    touch: { active: false, startX: 0, startY: 0, curX: 0, curY: 0 },
+    
+    // Entities
+    player: null,
+    hazards: [],
+    enemies: [],
+    items: [],
+    particles: [],
+    exit: null,
+    
+    lastTime: 0,
+    
+    init() {
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+        this.setupInputs();
+        
+        document.getElementById('startBtn').addEventListener('click', () => this.startNewGame());
+        document.getElementById('restartBtn').addEventListener('click', () => this.startNewGame());
+        
+        // Start Loop
+        requestAnimationFrame((t) => this.loop(t));
+    },
+    
+    resize() {
+        this.width = window.innerWidth;
+        this.height = window.innerHeight;
+        this.canvas.width = this.width;
+        this.canvas.height = this.height;
+    },
+    
+    setupInputs() {
+        window.addEventListener('keydown', (e) => {
+            const k = e.key.toLowerCase();
+            if(this.keys.hasOwnProperty(k)) this.keys[k] = true; if(k==='e'&&!e.repeat)this.containNearby();
+        });
+        window.addEventListener('keyup', (e) => {
+            const k = e.key.toLowerCase();
+            if(this.keys.hasOwnProperty(k)) this.keys[k] = false;
+        });
+        
+        // Touch (Virtual Joystick)
+        const jZone = document.getElementById('joystick-zone');
+        const jKnob = document.getElementById('joystick-knob');
+        
+        const updateTouch = (e) => {
+            if(this.state !== 'PLAYING') return;
+            e.preventDefault();
+            const t = e.targetTouches[0];
+            if(!t) return;
+            
+            if(!this.touch.active) {
+                this.touch.active = true;
+                this.touch.startX = t.clientX;
+                this.touch.startY = t.clientY;
+                jZone.style.display = 'block';
+                jZone.style.left = `${this.touch.startX - 70}px`;
+                jZone.style.top = `${this.touch.startY - 70}px`;
+            }
+            this.touch.curX = t.clientX;
+            this.touch.curY = t.clientY;
+            
+            const dx = this.touch.curX - this.touch.startX;
+            const dy = this.touch.curY - this.touch.startY;
+            const dist = Math.min(Math.hypot(dx, dy), 50);
+            const angle = Math.atan2(dy, dx);
+            jKnob.style.transform = `translate(calc(-50% + ${Math.cos(angle)*dist}px), calc(-50% + ${Math.sin(angle)*dist}px))`;
+        };
+        
+        const endTouch = () => {
+            this.touch.active = false;
+            jZone.style.display = 'none';
+            jKnob.style.transform = `translate(-50%, -50%)`;
+        };
+        
+        window.addEventListener('touchstart', updateTouch, {passive: false});
+        window.addEventListener('touchmove', updateTouch, {passive: false});
+        window.addEventListener('touchend', endTouch);
+    },
+    
+    startNewGame() {
+        this.level = 1; this.contained=0;
+        this.mapWidth = 15;
+        this.mapHeight = 15;
+        
+        document.getElementById('startScreen').classList.add('opacity-0');
+        setTimeout(() => document.getElementById('startScreen').classList.add('hidden'), 500);
+        
+        document.getElementById('gameOverScreen').classList.add('opacity-0');
+        setTimeout(() => document.getElementById('gameOverScreen').classList.add('hidden'), 500);
+        
+        document.getElementById('hud').classList.remove('hidden');
+        
+        this.player = new Player();
+        this.loadLevel();
+    },
+    
+    loadLevel() {
+        this.state = 'TRANSITION_WAIT'; // Pause updates while generating
+        document.getElementById('levelDisplay').textContent = `구역 ${this.level}`;
+        
+        // Make map bigger every level, max 35x35
+        this.mapWidth = Math.min(35, 13 + (this.level * 2));
+        this.mapHeight = Math.min(35, 13 + (this.level * 2));
+        
+        // Generate Map Structure
+        this.generateMaze();
+        
+        // Clear old entities
+        this.hazards = [];
+        this.enemies = [];
+        this.items = [];
+        this.particles = [];
+        
+        // Place Player at start (1,1 is usually empty in this generator)
+        this.player.x = 1 * CELL_SIZE + CELL_SIZE/2;
+        this.player.y = 1 * CELL_SIZE + CELL_SIZE/2;
+        
+        // Find furthest point for Exit
+        let maxDist = 0;
+        let ex = 1, ey = 1;
+        for(let y=1; y<this.mapHeight-1; y++) {
+            for(let x=1; x<this.mapWidth-1; x++) {
+                if(this.grid[y][x] === 0) {
+                    const dist = Math.hypot(x-1, y-1);
+                    if(dist > maxDist) {
+                        maxDist = dist;
+                        ex = x; ey = y;
+                    }
+                }
+            }
+        }
+        this.exit = {
+            x: ex * CELL_SIZE + CELL_SIZE/2,
+            y: ey * CELL_SIZE + CELL_SIZE/2,
+            radius: 15
+        };
+        
+        this.populateEntities(ex, ey);
+        
+        this.hazardSpawnTimer = 0;
+        this.state = 'PLAYING';
+    },
+    
+    generateMaze() {
+        // Initialize with walls
+        this.grid = Array(this.mapHeight).fill().map(() => Array(this.mapWidth).fill(1));
+        
+        // Recursive Backtracking
+        const stack = [];
+        const start = {x: 1, y: 1};
+        this.grid[start.y][start.x] = 0;
+        stack.push(start);
+        
+        const dirs = [[0,-2], [2,0], [0,2], [-2,0]]; // up, right, down, left
+        
+        while(stack.length > 0) {
+            const current = stack[stack.length - 1];
+            const unvisited = [];
+            
+            for(let i=0; i<dirs.length; i++) {
+                const nx = current.x + dirs[i][0];
+                const ny = current.y + dirs[i][1];
+                if(nx > 0 && nx < this.mapWidth-1 && ny > 0 && ny < this.mapHeight-1 && this.grid[ny][nx] === 1) {
+                    unvisited.push(i);
+                }
+            }
+            
+            if(unvisited.length > 0) {
+                // Pick random direction
+                const dirIdx = unvisited[Math.floor(Math.random() * unvisited.length)];
+                const dir = dirs[dirIdx];
+                
+                // Knock down wall in between
+                const wx = current.x + dir[0]/2;
+                const wy = current.y + dir[1]/2;
+                this.grid[wy][wx] = 0;
+                
+                const nextCell = {x: current.x + dir[0], y: current.y + dir[1]};
+                this.grid[nextCell.y][nextCell.x] = 0;
+                stack.push(nextCell);
+            } else {
+                stack.pop();
+            }
+        }
+        
+        // Remove some random walls to create loops (so it's not a perfect maze, better for survival)
+        const loopsToMake = Math.floor((this.mapWidth * this.mapHeight) * 0.05);
+        for(let i=0; i<loopsToMake; i++) {
+            const rx = Math.floor(Math.random() * (this.mapWidth-2)) + 1;
+            const ry = Math.floor(Math.random() * (this.mapHeight-2)) + 1;
+            if(this.grid[ry][rx] === 1) {
+                // Ensure it connects two floors to actually make a loop
+                let floorCount = 0;
+                if(this.grid[ry-1][rx] === 0) floorCount++;
+                if(this.grid[ry+1][rx] === 0) floorCount++;
+                if(this.grid[ry][rx-1] === 0) floorCount++;
+                if(this.grid[ry][rx+1] === 0) floorCount++;
+                
+                if(floorCount >= 2) this.grid[ry][rx] = 0;
+            }
+        }
+    },
+    
+    populateEntities(exitX, exitY) {
+        // Find all valid floor tiles excluding start and exit areas
+        const validTiles = [];
+        for(let y=1; y<this.mapHeight-1; y++) {
+            for(let x=1; x<this.mapWidth-1; x++) {
+                if(this.grid[y][x] === 0) {
+                    if(Math.hypot(x-1, y-1) > 3 && Math.hypot(x-exitX, y-exitY) > 2) {
+                        validTiles.push({x, y});
+                    }
+                }
+            }
+        }
+        
+        // Shuffle array
+        validTiles.sort(() => Math.random() - 0.5);
+        
+        // Calculate counts based on map size (Difficulty Scales up)
+        const hazardCount = Math.floor(validTiles.length * (0.15 + (this.level * 0.01))); // Slime & Fog & Chemicals
+        const enemyCount = Math.floor(this.level * 2.0) + 1; // Heavy Metal Sludge
+        const itemCount = Math.floor(this.level * 1.2) + 2; // Filters & Medkits
+        
+        let index = 0;
+        
+        // Hazards (Chemical / Oil / Fog)
+        for(let i=0; i<hazardCount && index < validTiles.length; i++, index++) {
+            const t = validTiles[index];
+            const px = t.x * CELL_SIZE + CELL_SIZE/2;
+            const py = t.y * CELL_SIZE + CELL_SIZE/2;
+            const rand = Math.random();
+            let type = 'CHEMICAL';
+            if (rand > 0.66) type = 'OIL';
+            else if (rand > 0.33) type = 'FOG';
+            this.hazards.push(new Hazard(px, py, type));
+        }
+        
+        // Enemies (Sludge)
+        for(let i=0; i<enemyCount && index < validTiles.length; i++, index++) {
+            const t = validTiles[index];
+            const px = t.x * CELL_SIZE + CELL_SIZE/2;
+            const py = t.y * CELL_SIZE + CELL_SIZE/2;
+            this.enemies.push(new Enemy(px, py));
+        }
+        
+        // Items
+        for(let i=0; i<itemCount && index < validTiles.length; i++, index++) {
+            const t = validTiles[index];
+            const px = t.x * CELL_SIZE + CELL_SIZE/2;
+            const py = t.y * CELL_SIZE + CELL_SIZE/2;
+            const type = Math.random() > 0.3 ? 'FILTER' : 'MEDKIT';
+            this.items.push(new Item(px, py, type));
+        }
+    },
+    
+    spawnDynamicHazard() {
+        // Find a valid floor tile that is outside player's immediate view but not too far
+        const validTiles = [];
+        for(let y=1; y<this.mapHeight-1; y++) {
+            for(let x=1; x<this.mapWidth-1; x++) {
+                if(this.grid[y][x] === 0) {
+                    const px = x * CELL_SIZE + CELL_SIZE/2;
+                    const py = y * CELL_SIZE + CELL_SIZE/2;
+                    const dist = Math.hypot(px - this.player.x, py - this.player.y);
+                    if(dist > VISIBILITY_RADIUS && dist < VISIBILITY_RADIUS * 3) {
+                        validTiles.push({x, y});
+                    }
+                }
+            }
+        }
+        
+        if(validTiles.length > 0) {
+            const t = validTiles[Math.floor(Math.random() * validTiles.length)];
+            const px = t.x * CELL_SIZE + CELL_SIZE/2;
+            const py = t.y * CELL_SIZE + CELL_SIZE/2;
+            
+            // Randomly pick between Enemy (Sludge) or Hazard
+            if (Math.random() > 0.4) {
+                this.enemies.push(new Enemy(px, py));
+            } else {
+                const rand = Math.random();
+                let type = 'CHEMICAL';
+                if (rand > 0.66) type = 'OIL';
+                else if (rand > 0.33) type = 'FOG';
+                this.hazards.push(new Hazard(px, py, type));
+            }
+            
+            // Show Warning UI
+            const warnUI = document.getElementById('dynamicWarning');
+            if(warnUI) {
+                warnUI.classList.remove('opacity-0');
+                setTimeout(() => warnUI.classList.add('opacity-0'), 3000);
+            }
+        }
+    },
+    
+    containNearby() {
+ if(this.state!=='PLAYING'||!this.player)return;
+ const index=this.hazards.findIndex(h=>Math.hypot(h.x-this.player.x,h.y-this.player.y)<70);
+ if(index<0){EcoFX.notify('action','주변에 봉쇄할 오염원이 없습니다. 오염원 가까이에서 E를 누르세요.');return;}
+ if(this.player.filter<12){EcoFX.notify('bad','봉쇄에는 필터 12가 필요합니다. 먼저 보급품을 찾으세요.');return;}
+ this.player.filter-=12;this.hazards.splice(index,1);this.contained++;this.updateHUD();EcoFX.notify('good','오염원 1곳 봉쇄 → 위험 구역 제거, 필터 -12. 안전 경로를 만들었습니다.');
+ },
+    nextLevel() {
+ EcoFX.notify('win','출구 도달. 다음 구역에서는 필터와 봉쇄 경로를 계획하세요.');
+        this.state = 'TRANSITION';
+        this.level++;
+        
+        const trans = document.getElementById('transitionScreen');
+        trans.classList.remove('hidden');
+        
+        // Refill player a bit on level clear
+        this.player.hp = Math.min(CONFIG.MAX_HP, this.player.hp + 30);
+        this.player.filter = Math.min(CONFIG.MAX_FILTER, this.player.filter + 50);
+        this.updateHUD();
+        
+        setTimeout(() => trans.classList.remove('opacity-0'), 50);
+        
+        setTimeout(() => {
+            this.loadLevel();
+            trans.classList.add('opacity-0');
+            setTimeout(() => trans.classList.add('hidden'), 500);
+        }, 2000);
+    },
+    
+    gameOver() {
+        this.state = 'GAMEOVER';
+ EcoFX.notify("bad","생존 실패. 위험 우회와 오염원 봉쇄를 조합해 다시 도전하세요.");
+        document.getElementById('hud').classList.add('hidden');
+        document.getElementById('finalLevel').textContent = this.level;
+        
+        const go = document.getElementById('gameOverScreen');
+        go.classList.remove('hidden');
+        setTimeout(() => go.classList.remove('opacity-0'), 50);
+    },
+    
+    updateHUD() {
+        if(!this.player) return;
+        
+        const hpPct = Math.max(0, this.player.hp / CONFIG.MAX_HP) * 100;
+        const filtPct = Math.max(0, this.player.filter / CONFIG.MAX_FILTER) * 100;
+        
+        const hpBar = document.getElementById('hpBar');
+        hpBar.style.width = `${hpPct}%`;
+        hpBar.style.backgroundColor = hpPct > 30 ? '#dc2626' : '#991b1b'; // Darker red when low
+        
+        const filterBar = document.getElementById('filterBar');
+        filterBar.style.width = `${filtPct}%`;
+        filterBar.style.backgroundColor = filtPct > 30 ? '#22d3ee' : '#f59e0b'; // Turn orange/yellow when low
+        
+        const filterContainer = document.getElementById('filterContainer');
+        const warnText = document.getElementById('warningText');
+        
+        if (this.player.filter <= 0) {
+            filterContainer.classList.add('warning-pulse');
+            warnText.classList.remove('opacity-0');
+        } else {
+            filterContainer.classList.remove('warning-pulse');
+            warnText.classList.add('opacity-0');
+        }
+    },
+    
+    // --- Main Loop ---
+    loop(timestamp) {
+        let dt = timestamp - this.lastTime;
+        if (dt > 1000) dt = 16; // Prevent massive jump on first frame
+        this.lastTime = timestamp;
+        
+        if (this.state === 'PLAYING') {
+            this.update(dt);
+            this.draw();
+        } else if (this.state === 'TRANSITION_WAIT' || this.state === 'GAMEOVER') {
+            this.draw(); // keep drawing background
+        }
+        
+        requestAnimationFrame((t) => this.loop(t));
+    },
+    
+    update(dt) {
+        this.player.update();
+        
+        // Time punisher logic - Spawn new hazards if lingering too long
+        this.hazardSpawnTimer += dt;
+        if (this.hazardSpawnTimer > 12000) { // Every 12 seconds
+            this.hazardSpawnTimer = 0;
+            this.spawnDynamicHazard();
+        }
+        
+        // Update enemies
+        for(const e of this.enemies) e.update(this.player, this.grid);
+        
+        // Hazards passive update (e.g. fog drift)
+        for(const h of this.hazards) h.update();
+        
+        // Particles
+        for(let i=this.particles.length-1; i>=0; i--) {
+            this.particles[i].update();
+            if(this.particles[i].life <= 0) this.particles.splice(i, 1);
+        }
+        
+        // Item Collection
+        for(let i=this.items.length-1; i>=0; i--) {
+            const item = this.items[i];
+            if(Math.hypot(this.player.x - item.x, this.player.y - item.y) < this.player.radius + item.radius) {
+                if(item.type === 'FILTER') {
+                    this.player.filter = Math.min(CONFIG.MAX_FILTER, this.player.filter + 40);
+                    this.spawnParticles(item.x, item.y, '#22d3ee', 10);
+                } else if (item.type === 'MEDKIT') {
+                    this.player.hp = Math.min(CONFIG.MAX_HP, this.player.hp + 30);
+                    this.spawnParticles(item.x, item.y, '#ef4444', 10);
+                }
+                this.items.splice(i, 1);
+                this.updateHUD();
+            }
+        }
+        
+        // Exit Check
+        if (Math.hypot(this.player.x - this.exit.x, this.player.y - this.exit.y) < this.player.radius + this.exit.radius) {
+            this.nextLevel();
+        }
+        
+        // Camera Follow Player
+        this.camX += (this.player.x - this.width/2 - this.camX) * 0.1;
+        this.camY += (this.player.y - this.height/2 - this.camY) * 0.1;
+        
+        this.updateHUD();
+    },
+    
+    draw() {
+        // Clear Screen - Backrooms Carpet Color
+        this.ctx.fillStyle = '#C8B878'; 
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        this.ctx.save();
+        this.ctx.translate(-this.camX, -this.camY);
+        
+        // Draw Grid Map - Sickly Yellow Walls
+        this.ctx.fillStyle = '#E3D580'; 
+        this.ctx.strokeStyle = '#C4B460'; 
+        this.ctx.lineWidth = 2;
+        
+        // Optimize drawing: only draw visible tiles
+        const startCol = Math.floor(this.camX / CELL_SIZE);
+        const endCol = startCol + (this.width / CELL_SIZE) + 1;
+        const startRow = Math.floor(this.camY / CELL_SIZE);
+        const endRow = startRow + (this.height / CELL_SIZE) + 1;
+        
+        for (let y = Math.max(0, startRow); y < Math.min(this.mapHeight, endRow); y++) {
+            for (let x = Math.max(0, startCol); x < Math.min(this.mapWidth, endCol); x++) {
+                if (this.grid[y][x] === 1) {
+                    this.ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                    this.ctx.strokeRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                } else {
+                    // Carpet texture hint
+                    if((x+y)%2===0) {
+                        this.ctx.fillStyle = 'rgba(0,0,0,0.03)';
+                        this.ctx.fillRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                        this.ctx.fillStyle = '#E3D580'; // reset for walls
+                    }
+                }
+            }
+        }
+        
+        // Draw Entities
+        for(const h of this.hazards) h.draw(this.ctx);
+        for(const i of this.items) i.draw(this.ctx);
+        for(const e of this.enemies) e.draw(this.ctx);
+        
+        // Draw Exit
+        if(this.exit) {
+            this.ctx.shadowBlur = 20;
+            this.ctx.shadowColor = '#22c55e';
+            this.ctx.fillStyle = '#4ade80';
+            this.ctx.beginPath();
+            this.ctx.arc(this.exit.x, this.exit.y, this.exit.radius, 0, Math.PI*2);
+            this.ctx.fill();
+            this.ctx.shadowBlur = 0;
+            
+            // Exit detail (Green Zone markings)
+            this.ctx.strokeStyle = '#166534';
+            this.ctx.lineWidth = 3;
+            this.ctx.beginPath();
+            this.ctx.moveTo(this.exit.x - 10, this.exit.y - 10);
+            this.ctx.lineTo(this.exit.x + 10, this.exit.y + 10);
+            this.ctx.moveTo(this.exit.x + 10, this.exit.y - 10);
+            this.ctx.lineTo(this.exit.x - 10, this.exit.y + 10);
+            this.ctx.stroke();
+        }
+        
+        for(const p of this.particles) p.draw(this.ctx);
+        
+        if(this.player) this.player.draw(this.ctx);
+        
+        this.ctx.restore();
+        
+        // --- Backrooms Vibe Effects ---
+        // 1. Vignette (Darken edges, keep center visible)
+        const cx = this.width / 2;
+        const cy = this.height / 2;
+        const radius = Math.max(this.width, this.height) * 0.7;
+        
+        let grad = this.ctx.createRadialGradient(cx, cy, radius * 0.3, cx, cy, radius);
+        grad.addColorStop(0, 'rgba(0, 0, 0, 0)');
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0.75)');
+        
+        this.ctx.fillStyle = grad;
+        this.ctx.fillRect(0, 0, this.width, this.height);
+
+        // 2. Fluorescent Light Flicker
+        if (Math.random() < 0.03) {
+            this.flickerAlpha = Math.random() * 0.3 + 0.1;
+        } else {
+            this.flickerAlpha = Math.max(0, (this.flickerAlpha || 0) - 0.05);
+        }
+        
+        if (this.flickerAlpha > 0) {
+            this.ctx.fillStyle = `rgba(0, 0, 0, ${this.flickerAlpha})`;
+            this.ctx.fillRect(0, 0, this.width, this.height);
+        }
+    },
+    
+    spawnParticles(x, y, color, count) {
+        for(let i=0; i<count; i++) {
+            this.particles.push(new Particle(x, y, color));
+        }
+    }
+};
+
+// --- Classes ---
+
+class Player {
+    constructor() {
+        this.x = 0;
+        this.y = 0;
+        this.radius = 12;
+        this.hp = CONFIG.MAX_HP;
+        this.filter = CONFIG.MAX_FILTER;
+        this.speed = BASE_SPEED;
+        this.invincibilityFrames = 0;
+        this.angle = 0;
+    }
+    
+    update() {
+        // Filter decay (Increases with level to add pressure)
+        const currentDecayRate = CONFIG.FILTER_DECAY_RATE + (GameState.level * 0.015);
+        this.filter = Math.max(0, this.filter - currentDecayRate);
+        
+        if (this.filter <= 0) {
+            this.hp -= CONFIG.NO_FILTER_DMG;
+            if (Math.random() < 0.1) GameState.spawnParticles(this.x, this.y, '#991b1b', 1); // Gasping blood effect
+        }
+        
+        // I-frames
+        if(this.invincibilityFrames > 0) this.invincibilityFrames--;
+        
+        // Movement Vector
+        let dx = 0, dy = 0;
+        
+        if (GameState.touch.active) {
+            const tdx = GameState.touch.curX - GameState.touch.startX;
+            const tdy = GameState.touch.curY - GameState.touch.startY;
+            const dist = Math.hypot(tdx, tdy);
+            if (dist > 5) {
+                dx = (tdx / dist);
+                dy = (tdy / dist);
+            }
+        } else {
+            if (GameState.keys.w || GameState.keys.arrowup) dy -= 1;
+            if (GameState.keys.s || GameState.keys.arrowdown) dy += 1;
+            if (GameState.keys.a || GameState.keys.arrowleft) dx -= 1;
+            if (GameState.keys.d || GameState.keys.arrowright) dx += 1;
+            
+            // Normalize
+            const dist = Math.hypot(dx, dy);
+            if (dist > 0) {
+                dx /= dist;
+                dy /= dist;
+            }
+        }
+        
+        if(dx !== 0 || dy !== 0) this.angle = Math.atan2(dy, dx);
+        
+        // Collision Detection & Resolution
+        this.moveWithCollision(dx * this.speed, dy * this.speed);
+        
+        // Hazard Interaction
+        let inFog = false;
+        let inSlime = false;
+        let inChemical = false;
+        
+        for(const h of GameState.hazards) {
+            const dist = Math.hypot(this.x - h.x, this.y - h.y);
+            if (dist < this.radius + h.radius) {
+                if(h.type === 'FOG') inFog = true;
+                if(h.type === 'OIL') inSlime = true;
+                if(h.type === 'CHEMICAL') inChemical = true;
+            }
+        }
+        
+        if (inFog) {
+            this.filter = Math.max(0, this.filter - CONFIG.FOG_FILTER_DMG);
+        }
+        if (inChemical) {
+            this.hp -= CONFIG.SLIME_DMG;
+            if(Math.random()<0.2) GameState.spawnParticles(this.x, this.y, '#a855f7', 1);
+        }
+        if (inSlime) {
+            this.speed = BASE_SPEED * 0.5; // Slow down heavily in oil slime
+            if(Math.random()<0.2) GameState.spawnParticles(this.x, this.y, '#3f3f46', 1);
+        } else {
+            this.speed = BASE_SPEED;
+        }
+        
+        if (this.hp <= 0) GameState.gameOver();
+    }
+    
+    moveWithCollision(vx, vy) {
+        // Attempt X move
+        this.x += vx;
+        if(this.checkWallCollision()) this.x -= vx;
+        
+        // Attempt Y move
+        this.y += vy;
+        if(this.checkWallCollision()) this.y -= vy;
+    }
+    
+    checkWallCollision() {
+        const padding = 2;
+        // Check 4 points around player
+        const points = [
+            {x: this.x - this.radius + padding, y: this.y - this.radius + padding},
+            {x: this.x + this.radius - padding, y: this.y - this.radius + padding},
+            {x: this.x - this.radius + padding, y: this.y + this.radius - padding},
+            {x: this.x + this.radius - padding, y: this.y + this.radius - padding}
+        ];
+        
+        for (const p of points) {
+            const cX = Math.floor(p.x / CELL_SIZE);
+            const cY = Math.floor(p.y / CELL_SIZE);
+            if (cX < 0 || cX >= GameState.mapWidth || cY < 0 || cY >= GameState.mapHeight) return true;
+            if (GameState.grid[cY][cX] === 1) return true;
+        }
+        return false;
+    }
+    
+    takeDamage(amount) {
+        if(this.invincibilityFrames > 0) return;
+        this.hp -= amount;
+        this.invincibilityFrames = 40;
+        GameState.spawnParticles(this.x, this.y, '#ef4444', 15);
+        if (this.hp <= 0) GameState.gameOver();
+        GameState.updateHUD();
+    }
+    
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        
+        // Blink if invincible
+        if (this.invincibilityFrames > 0 && Math.floor(Date.now() / 100) % 2 === 0) {
+            ctx.globalAlpha = 0.5;
+        }
+        
+        ctx.rotate(this.angle);
+        
+        // Flashlight beam
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, VISIBILITY_RADIUS, -0.4, 0.4);
+        ctx.fill();
+        
+        // Draw Player Body (Diver/Hazmat suit shape)
+        ctx.fillStyle = '#f59e0b'; // Amber suit
+        ctx.strokeStyle = '#b45309';
+        ctx.lineWidth = 2;
+        
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Mask / Filter graphic
+        ctx.fillStyle = this.filter > 0 ? '#22d3ee' : '#111'; // Filter indicator on back/head
+        ctx.beginPath();
+        ctx.arc(-2, 0, 6, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Visor
+        ctx.fillStyle = '#1e293b';
+        ctx.beginPath();
+        ctx.rect(4, -5, 8, 10);
+        ctx.fill();
+        
+        ctx.restore();
+    }
+}
+
+class Hazard {
+    constructor(x, y, type) {
+        this.x = x;
+        this.y = y;
+        this.type = type; // 'CHEMICAL', 'OIL', or 'FOG'
+        this.radius = (type === 'CHEMICAL' || type === 'OIL') ? 18 : 25;
+        // Float effect for fog
+        this.offsetX = 0;
+        this.offsetY = 0;
+        this.seed = Math.random() * 100;
+    }
+    
+    update() {
+        if(this.type === 'FOG') {
+            const time = Date.now() * 0.001;
+            this.offsetX = Math.sin(time + this.seed) * 5;
+            this.offsetY = Math.cos(time * 0.8 + this.seed) * 5;
+        }
+    }
+    
+    draw(ctx) {
+        ctx.save();
+        if(this.type === 'CHEMICAL') {
+            // Toxic purple puddle
+            ctx.fillStyle = 'rgba(168, 85, 247, 0.6)';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#a855f7';
+            ctx.beginPath();
+            ctx.ellipse(this.x, this.y, this.radius, this.radius * 0.7, 0, 0, Math.PI*2);
+            ctx.fill();
+        } else if (this.type === 'OIL') {
+            // Sticky black/brown slime
+            ctx.fillStyle = 'rgba(39, 39, 42, 0.8)'; // dark grey/brown
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = '#18181b';
+            ctx.beginPath();
+            ctx.ellipse(this.x, this.y, this.radius, this.radius * 0.8, Math.random()*0.1, 0, Math.PI*2);
+            ctx.fill();
+        } else {
+            // Microplastic Fog (Reddish)
+            ctx.translate(this.x + this.offsetX, this.y + this.offsetY);
+            
+            const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, this.radius);
+            grad.addColorStop(0, 'rgba(239, 68, 68, 0.7)'); 
+            grad.addColorStop(0.5, 'rgba(248, 113, 113, 0.4)');
+            grad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+            
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius, 0, Math.PI*2);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+}
+
+class Enemy {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.radius = 10;
+        this.speed = CONFIG.ENEMY_SPEED + (GameState.level * 0.1); // Gets slightly faster each level
+        this.wobble = Math.random() * Math.PI * 2;
+    }
+    
+    update(player, grid) {
+        const dist = Math.hypot(player.x - this.x, player.y - this.y);
+        
+        // Only agro if relatively close (Line of sight approximation based on distance)
+        if (dist < VISIBILITY_RADIUS * 1.5) {
+            let dx = (player.x - this.x) / dist;
+            let dy = (player.y - this.y) / dist;
+            
+            // Simple pathing (slide along walls)
+            this.x += dx * this.speed;
+            if(this.checkWallCollision(grid)) this.x -= dx * this.speed;
+            
+            this.y += dy * this.speed;
+            if(this.checkWallCollision(grid)) this.y -= dy * this.speed;
+            
+            // Hit player
+            if (dist < this.radius + player.radius) {
+                player.takeDamage(CONFIG.ENEMY_DMG);
+            }
+        }
+        
+        this.wobble += 0.1;
+    }
+    
+    checkWallCollision(grid) {
+        const cX = Math.floor(this.x / CELL_SIZE);
+        const cY = Math.floor(this.y / CELL_SIZE);
+        if(cX < 0 || cX >= GameState.mapWidth || cY < 0 || cY >= GameState.mapHeight) return true;
+        
+        // More precise 4-point check
+        const points = [
+            {x: this.x - this.radius, y: this.y - this.radius},
+            {x: this.x + this.radius, y: this.y - this.radius},
+            {x: this.x - this.radius, y: this.y + this.radius},
+            {x: this.x + this.radius, y: this.y + this.radius}
+        ];
+        
+        for (const p of points) {
+            const px = Math.floor(p.x / CELL_SIZE);
+            const py = Math.floor(p.y / CELL_SIZE);
+            if (grid[py] && grid[py][px] === 1) return true;
+        }
+        return false;
+    }
+    
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        
+        const pulsate = Math.sin(this.wobble) * 2;
+        
+        // Heavy Metal Residue (Grey color)
+        ctx.fillStyle = '#6b7280'; 
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#374151';
+        
+        ctx.beginPath();
+        // Jagged/blobby shape
+        for(let i=0; i<6; i++) {
+            const angle = (i/6) * Math.PI * 2;
+            const r = this.radius + Math.sin(this.wobble + i) * 3;
+            const px = Math.cos(angle) * r;
+            const py = Math.sin(angle) * r;
+            if(i===0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fill();
+        
+        // Inner rust/metal core
+        ctx.fillStyle = '#4b5563'; 
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius/2 + pulsate/2, 0, Math.PI*2);
+        ctx.fill();
+        
+        ctx.restore();
+    }
+}
+
+class Item {
+    constructor(x, y, type) {
+        this.x = x;
+        this.y = y;
+        this.type = type; // 'FILTER' or 'MEDKIT'
+        this.radius = 8;
+        this.hover = Math.random() * Math.PI;
+    }
+    
+    draw(ctx) {
+        ctx.save();
+        this.hover += 0.05;
+        const hOffset = Math.sin(this.hover) * 4;
+        
+        ctx.translate(this.x, this.y + hOffset);
+        
+        if (this.type === 'FILTER') {
+            ctx.fillStyle = '#22d3ee';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#22d3ee';
+            // Draw cylinder
+            ctx.fillRect(-6, -6, 12, 12);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(-8, -8, 16, 4);
+            ctx.fillRect(-8, 4, 16, 4);
+        } else {
+            ctx.fillStyle = '#ef4444';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#ef4444';
+            ctx.fillRect(-7, -7, 14, 14);
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(-2, -5, 4, 10);
+            ctx.fillRect(-5, -2, 10, 4);
+        }
+        
+        ctx.restore();
+    }
+}
+
+class Particle {
+    constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 2 + 1;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        this.life = 1.0;
+        this.decay = Math.random() * 0.05 + 0.02;
+    }
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life -= this.decay;
+    }
+    draw(ctx) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, this.life);
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 2, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
+// Start Engine
+window.onload = () => {
+    GameState.init();
+};
+
+</script>
+<script>
+EcoFX.mount({title:"오염된 미로의 안전 경로",goal:"오염원 가까이에서 E: 필터 12를 사용해 위험 구역 한 곳을 봉쇄합니다.",note:"봉쇄는 오염 확산을 줄이는 가상 작업입니다. 실제 유해물질은 직접 만지거나 임의 처리하지 않습니다.",read:()=>({label:'오염원 봉쇄 '+GameState.contained+' · 기록',progress:GameState.player?GameState.player.filter:100,detail:'봉쇄 '+GameState.contained+'곳 · 필터 '+Math.round(GameState.player?.filter??100)+'. 막대는 필터 잔량입니다. 가까운 오염원은 E로 봉쇄하고 출구로 이동하세요.'}),actions:[{label:'주변 오염원 봉쇄 [E]',run:()=>GameState.containNearby()}]});
+</script>
+</body>
+</html>

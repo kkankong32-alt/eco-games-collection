@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta name="referrer" content="no-referrer">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>에코, 플리즈 - 분리수거소</title>
+    <link rel="stylesheet" href="vendor/tailwind.css">
+    <script src="vendor/1.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=VT323&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #080b08;
+            font-family: 'Noto Sans KR', sans-serif;
+            user-select: none;
+        }
+
+        .font-crt { font-family: 'VT323', monospace; }
+
+        /* CRT Scanline & Glitch Effect Overlay */
+        .crt-overlay {
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 3px, 6px 100%;
+            pointer-events: none;
+        }
+        .crt-vignette {
+            box-shadow: inset 0 0 100px rgba(0, 20, 5, 0.8), inset 0 0 30px rgba(0,0,0,0.9);
+            pointer-events: none;
+        }
+
+        /* Paper Document Styles */
+        .doc-paper {
+            background: #d8ceb3;
+            background-image: radial-gradient(#b8ad90 1px, transparent 0);
+            background-size: 12px 12px;
+            color: #1a1e17;
+            box-shadow: 5px 12px 25px rgba(0,0,0,0.7), 0 0 2px rgba(0,0,0,0.5);
+            border: 1px solid #9c9175;
+            transition: transform 0.1s ease-out;
+        }
+
+        /* Stamp animations */
+        .stamp-mark {
+            transform: scale(2) rotate(-12deg);
+            opacity: 0;
+            transition: all 0.12s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .stamp-mark.stamped {
+            transform: scale(1) rotate(-8deg);
+            opacity: 0.88;
+        }
+
+        /* Screen Glows */
+        .green-glow { text-shadow: 0 0 8px rgba(50, 255, 100, 0.7); }
+        .amber-glow { text-shadow: 0 0 8px rgba(255, 170, 0, 0.7); }
+        .red-glow { text-shadow: 0 0 8px rgba(255, 50, 50, 0.7); }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #111a13; }
+        ::-webkit-scrollbar-thumb { background: #2a3d2e; border-radius: 3px; }
+    </style>
+<style>.hidden { display: none !important; }</style>
+<script src="eco-feedback.js"></script>
+<style id="final-layout">@media(max-width:600px){#stamp-deny-btn,#stamp-approve-btn{padding:4px}#stamp-deny-btn>div,#stamp-approve-btn>div{width:30px;height:38px}#bribe-container{max-width:62px;font-size:10px}}</style><style>@media(max-width:600px){#top-hud{display:grid;grid-template-columns:1fr 1fr;gap:6px}#top-hud>div{min-width:0;padding:6px}#top-hud>div:nth-child(2){grid-column:1 / -1;grid-row:2;max-width:none}#top-hud>div:nth-child(3){grid-column:2;grid-row:1}#top-hud>div:first-child>div:first-child{font-size:9px;letter-spacing:0}#rule-notice{display:block;font-size:12px}#top-hud #status-message{height:auto}#modal-panel{max-height:90vh;overflow:auto}#scanner-screen{height:132px}}</style></head>
+<body class="flex flex-col h-screen w-screen relative overflow-hidden bg-black text-slate-200">
+
+    <!-- 3D Viewport Canvas Container -->
+    <div id="canvas-container" class="absolute inset-0 w-full h-full z-0"></div>
+
+    <!-- Retro CRT Fog Overlay Filter -->
+    <div class="crt-overlay absolute inset-0 z-10"></div>
+    <div class="crt-vignette absolute inset-0 z-10"></div>
+
+    <!-- MAIN UI OVERLAY LAYER -->
+    <div class="relative z-20 flex flex-col justify-between h-full w-full pointer-events-none p-2 sm:p-4">
+        
+        <!-- TOP HEADER HUD -->
+        <div id="top-hud" class="flex justify-between items-start w-full gap-2">
+            <!-- Left Info Panel -->
+            <div class="pointer-events-auto bg-emerald-950/80 border-2 border-emerald-700/60 p-2.5 rounded-lg backdrop-blur-md shadow-lg min-w-[220px]">
+                <div class="text-xs text-emerald-400/80 font-mono tracking-widest uppercase">스모그 시티 - 제3 분리수거소</div>
+                <div class="text-lg font-bold text-emerald-200 flex items-center gap-2">
+                    <span id="day-display" class="font-crt text-2xl text-emerald-300 green-glow">DAY 01</span>
+                    <span class="text-xs px-2 py-0.5 bg-emerald-900/80 text-emerald-300 border border-emerald-600 rounded" id="quota-tag">목표: 0/5</span>
+                </div>
+                <div class="w-full bg-emerald-950 rounded-full h-2 mt-1.5 border border-emerald-800 overflow-hidden">
+                    <div id="quota-bar" class="bg-emerald-400 h-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Center Notice / Rule Screen -->
+            <div class="pointer-events-auto bg-slate-900/90 border-2 border-amber-600/70 p-2.5 rounded-lg backdrop-blur-md shadow-xl max-w-md w-full text-center">
+                <div class="text-xs text-amber-500 font-mono tracking-widest font-bold">⚠️ 오늘의 수거 지침 ⚠️</div>
+                <div id="rule-notice" class="text-sm font-bold text-amber-200 mt-0.5 line-clamp-2">
+                    오염된(기름, 이물질) 쓰레기는 수거를 거부하라.
+                </div>
+            </div>
+
+            <!-- Right Status Panel -->
+            <div class="pointer-events-auto bg-slate-900/80 border-2 border-slate-700 p-2.5 rounded-lg backdrop-blur-md shadow-lg min-w-[180px] text-right">
+                <div class="text-xs text-slate-400 font-mono">소지금 / 잔여 시간</div>
+                <div class="flex items-center justify-end gap-3 mt-0.5">
+                    <span id="money-display" class="text-xl font-bold font-crt text-yellow-400 amber-glow">$ 0</span>
+                    <span id="timer-display" class="text-xl font-bold font-crt text-red-400">08:00</span>
+                </div>
+                <div id="status-message" class="text-xs text-emerald-400 font-mono mt-1 h-4">대기 중...</div>
+            </div>
+        </div>
+
+        <!-- CENTER INTERACTIVE WORKSPACE -->
+        <div class="flex-1 flex justify-between items-end pb-2 relative pointer-events-none">
+            
+            <!-- Left Scanner Monitor -->
+            <div class="pointer-events-auto w-80 sm:w-96 bg-zinc-950/90 border-2 border-emerald-800/80 rounded-xl p-3 shadow-2xl backdrop-blur-lg flex flex-col gap-2 mb-2 ml-2">
+                <div class="flex justify-between items-center border-b border-emerald-900/80 pb-1">
+                    <div class="text-xs font-crt text-emerald-400 green-glow flex items-center gap-1">
+                        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        TRASH SCANNER V2
+                    </div>
+                    <button id="btn-scan" class="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 active:bg-emerald-800 text-emerald-950 font-bold text-xs rounded border border-emerald-400 transition cursor-pointer">
+                        🔍 쓰레기 스캔
+                    </button>
+                </div>
+
+                <!-- Scanner Screen Output -->
+                <div id="scanner-screen" class="bg-black/90 border border-emerald-900 rounded p-2 h-36 font-crt text-emerald-400 text-xs overflow-y-auto flex flex-col gap-1 leading-relaxed">
+                    <div class="text-emerald-600">[시스템] 시민이 다가오고 있습니다. 대기하십시오.</div>
+                </div>
+            </div>
+
+            <!-- Right Workspace: Desk Tools -->
+            <div class="pointer-events-auto flex items-end gap-3 mb-2 mr-2">
+                
+                <!-- Bribe / Tip Envelope -->
+                <div id="bribe-container" class="hidden flex-col items-center gap-1 cursor-pointer hover:scale-105 transition-transform">
+                    <div id="btn-take-bribe" class="bg-amber-900/90 hover:bg-amber-800 border-2 border-yellow-500/80 text-yellow-300 font-bold px-3 py-2 rounded-lg shadow-2xl flex items-center gap-2">
+                        <span>💵 뒷돈 봉투</span>
+                        <span id="bribe-amount" class="text-xs text-yellow-400 font-crt">+$10</span>
+                    </div>
+                    <span class="text-[10px] text-amber-400/80 bg-black/80 px-1 rounded">불법 투기 눈감아주기</span>
+                </div>
+
+                <!-- Stamps -->
+                <div class="bg-zinc-900/90 border-2 border-zinc-700 rounded-xl p-3 shadow-2xl flex gap-3 items-center backdrop-blur-md">
+                    <!-- DENY Stamp -->
+                    <button id="stamp-deny-btn" class="group flex flex-col items-center gap-1 p-2 rounded-lg bg-red-950/60 hover:bg-red-900/80 border-2 border-red-600/80 active:scale-95 transition cursor-pointer">
+                        <div class="w-12 h-14 bg-gradient-to-t from-red-950 via-zinc-800 to-amber-950 rounded-t-full border border-red-500 shadow-md flex items-center justify-center">
+                            <div class="w-6 h-6 rounded-full bg-red-600/80 border border-red-300"></div>
+                        </div>
+                        <span class="text-xs font-bold text-red-400 group-hover:text-red-300">수거 거부</span>
+                    </button>
+
+                    <!-- APPROVE Stamp -->
+                    <button id="stamp-approve-btn" class="group flex flex-col items-center gap-1 p-2 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 border-2 border-emerald-600/80 active:scale-95 transition cursor-pointer">
+                        <div class="w-12 h-14 bg-gradient-to-t from-emerald-950 via-zinc-800 to-amber-950 rounded-t-full border border-emerald-500 shadow-md flex items-center justify-center">
+                            <div class="w-6 h-6 rounded-full bg-emerald-500/80 border border-emerald-300"></div>
+                        </div>
+                        <span class="text-xs font-bold text-emerald-400 group-hover:text-emerald-300">수거 승인</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- INTERACTIVE DOCUMENT MODAL -->
+    <div id="document-overlay" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-auto transition-transform duration-300 hidden">
+        <div id="paper-doc" class="doc-paper w-[340px] sm:w-[380px] p-5 rounded-sm relative text-zinc-900 flex flex-col gap-3">
+            
+            <!-- Stamp Visual Indicators -->
+            <div id="doc-stamp-mark" class="stamp-mark absolute right-6 top-10 border-4 px-4 py-1.5 text-2xl font-black font-mono rounded tracking-widest pointer-events-none z-10">
+                APPROVED
+            </div>
+
+            <div class="border-b-2 border-zinc-800 pb-2 flex justify-between items-start">
+                <div>
+                    <h2 class="text-base font-black tracking-wider uppercase">폐기물 배출 신고서</h2>
+                    <p class="text-[10px] text-zinc-600 font-mono">FORM NO. <span id="doc-id">WST-8821</span></p>
+                </div>
+                <div id="doc-seal" class="w-10 h-10 border-2 border-emerald-800 rounded-full flex items-center justify-center text-[10px] font-bold text-emerald-900 text-center leading-tight">
+                    구청<br>인가
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+                <div>
+                    <span class="text-zinc-500 block text-[10px]">시민 등록 ID</span>
+                    <strong id="doc-citizen-id" class="text-zinc-800">CTZ-904</strong>
+                </div>
+                <div>
+                    <span class="text-zinc-500 block text-[10px]">배출 신고일</span>
+                    <strong id="doc-date" class="text-zinc-800">2026-10-28</strong>
+                </div>
+                <div>
+                    <span class="text-zinc-500 block text-[10px]">측정 중량</span>
+                    <strong id="doc-weight" class="text-zinc-800">1.2 kg</strong>
+                </div>
+                <div>
+                    <span class="text-zinc-500 block text-[10px]">폐기물 분류</span>
+                    <strong id="doc-type" class="text-zinc-800">플라스틱 (PET)</strong>
+                </div>
+            </div>
+
+            <div class="bg-zinc-300/60 p-2.5 rounded border border-zinc-400 mt-1">
+                <span class="text-zinc-600 block text-[10px] font-mono mb-1">상세 내용물</span>
+                <p id="doc-desc" class="text-xs font-bold text-zinc-800 leading-snug">
+                    음료수 페트병 5개 묶음
+                </p>
+            </div>
+
+            <div class="flex items-center justify-between pt-1 border-t border-zinc-400 text-xs">
+                <span class="text-[11px] text-zinc-600 font-mono">오염 상태 검수:</span>
+                <span id="doc-contamination-tag" class="font-bold text-sm">깨끗함 (CLEAN)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- START / DAY RESULT MODAL -->
+    <div id="modal-screen" class="absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 pointer-events-auto">
+        <div id="modal-panel" class="bg-zinc-900 border-2 border-emerald-600/80 rounded-xl max-w-lg w-full p-6 text-slate-100 shadow-2xl flex flex-col gap-4 transition-colors duration-300">
+            
+            <div id="modal-header" class="text-center border-b border-zinc-800 pb-3">
+                <h1 id="modal-title" class="text-2xl font-black text-emerald-400 green-glow font-crt">에코 분리수거소 관리자</h1>
+                <p id="modal-subtitle" class="text-xs text-zinc-400 mt-1">스모그 시티 - 제3구역 분리수거장</p>
+            </div>
+
+            <div id="modal-body" class="text-sm leading-relaxed text-zinc-300 space-y-3 max-h-80 overflow-y-auto pr-1">
+                <p class="text-emerald-300 font-bold">오염이 극에 달한 2026년, 쓰레기 분리수거는 생존의 문제입니다.</p>
+                <p>당신은 수거소 관리자입니다. 시민들이 가져오는 폐기물 배출 신고서를 확인하고, 오늘의 규정에 맞는지 검토하여 승인/거부 도장을 찍으십시오.</p>
+                <p class="text-amber-400 text-xs bg-amber-950/40 p-2 border border-amber-800/60 rounded">
+                    ⚠️ 오염되거나 규정에 맞지 않는 쓰레기를 승인하면 벌금이 부과됩니다!
+                </p>
+            </div>
+
+            <!-- Shop Upgrades -->
+            <div id="shop-section" class="hidden border-t border-zinc-800 pt-3 flex flex-col gap-2">
+                <h3 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">시설 업그레이드</h3>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <button id="buy-scanner-upg" class="p-2 bg-zinc-800 hover:bg-zinc-700 border border-emerald-600/50 rounded flex flex-col items-start gap-0.5 text-left transition">
+                        <span class="font-bold text-emerald-300">고속 스캐너</span>
+                        <span class="text-[10px] text-zinc-400">스캔 속도 50% 향상</span>
+                        <span class="text-amber-400 font-bold mt-1">$50</span>
+                    </button>
+                    <button id="buy-filter-upg" class="p-2 bg-zinc-800 hover:bg-zinc-700 border border-emerald-600/50 rounded flex flex-col items-start gap-0.5 text-left transition">
+                        <span class="font-bold text-emerald-300">시간 연장 근무</span>
+                        <span class="text-[10px] text-zinc-400">일일 제한 시간 +15초</span>
+                        <span class="text-amber-400 font-bold mt-1">$40</span>
+                    </button>
+                </div>
+            </div>
+
+            <button id="modal-main-btn" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-emerald-950 font-black rounded-lg text-base tracking-wider transition cursor-pointer shadow-lg mt-2">
+                업무 시작하기
+            </button>
+        </div>
+    </div>
+
+    <!-- GAME SCRIPT -->
+    <script>
+        /* ----------------------------------------------------
+         * AUDIO SYNTHESIZER
+         * ---------------------------------------------------- */
+        class SoundFX {
+            constructor() { this.ctx = null; }
+            init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); }
+            playBeep(freq = 800, type = 'sine', duration = 0.1) {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.type = type; osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + duration);
+            }
+            playStampThump() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(120, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(20, this.ctx.currentTime + 0.15);
+                gain.gain.setValueAtTime(0.6, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(); osc.stop(this.ctx.currentTime + 0.15);
+            }
+            playPaperRustle() {
+                if (!this.ctx) return;
+                const bufferSize = this.ctx.sampleRate * 0.1; const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0); for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+                const noise = this.ctx.createBufferSource(); noise.buffer = buffer;
+                const filter = this.ctx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.value = 1000;
+                const gain = this.ctx.createGain(); gain.gain.setValueAtTime(0.2, this.ctx.currentTime); gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+                noise.connect(filter); filter.connect(gain); gain.connect(this.ctx.destination); noise.start();
+            }
+            playCashSound() { this.playBeep(1200, 'sine', 0.08); setTimeout(() => this.playBeep(1600, 'sine', 0.12), 60); }
+            playSiren() { this.playBeep(300, 'sawtooth', 0.2); setTimeout(() => this.playBeep(250, 'sawtooth', 0.2), 200); }
+        }
+        const audio = new SoundFX();
+
+        /* ----------------------------------------------------
+         * THREE.JS LOW-POLY 3D SCENE SETUP
+         * ---------------------------------------------------- */
+        let scene, camera, renderer, windowGlassMesh, rainParticles;
+        let citizenMesh = null;
+        let buildings = [];
+
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a2f1c); // 녹색 스모그
+            scene.fog = new THREE.FogExp2(0x1a2f1c, 0.05);
+
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 1.7, 3.8); // 약간 뒤로, 위로 (책상을 내려다보는 시점)
+            camera.lookAt(0, 1.4, -5);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0x2a3c2a, 1.5); // 짙은 녹색 앰비언트 라이트
+            scene.add(ambientLight);
+
+            const streetLight = new THREE.PointLight(0x55ff55, 1.0, 20); // 창밖 가로등 불빛
+            streetLight.position.set(0, 5, -8);
+            scene.add(streetLight);
+
+            const deskLight = new THREE.SpotLight(0xaaffaa, 1.5, 15, Math.PI / 3, 0.5); // 책상 위 조명
+            deskLight.position.set(0, 4, 1.5);
+            deskLight.target.position.set(0, 0, -1);
+            scene.add(deskLight);
+            scene.add(deskLight.target);
+
+            buildRoom();
+            buildCityscape();
+            createRainParticles();
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function buildRoom() {
+            // Desk
+            const deskGeo = new THREE.BoxGeometry(8, 0.2, 3);
+            const deskMat = new THREE.MeshStandardMaterial({ color: 0x222621, roughness: 0.9 });
+            const desk = new THREE.Mesh(deskGeo, deskMat);
+            desk.position.set(0, 0.8, 1.5);
+            scene.add(desk);
+
+            // Ground outside
+            const groundGeo = new THREE.PlaneGeometry(60, 40);
+            const groundMat = new THREE.MeshStandardMaterial({ color: 0x0a120a, roughness: 1.0 });
+            const ground = new THREE.Mesh(groundGeo, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.set(0, 0, -15);
+            scene.add(ground);
+
+            // Window Frame Wall
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x1a1f1a, roughness: 0.8 });
+            
+            // Bottom wall
+            const bottomWall = new THREE.Mesh(new THREE.BoxGeometry(10, 1.5, 0.2), wallMat);
+            bottomWall.position.set(0, 0.75, -1);
+            scene.add(bottomWall);
+
+            // Top wall
+            const topWall = new THREE.Mesh(new THREE.BoxGeometry(10, 1.5, 0.2), wallMat);
+            topWall.position.set(0, 3.5, -1);
+            scene.add(topWall);
+
+            // Left wall
+            const leftWall = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 0.2), wallMat);
+            leftWall.position.set(-4, 2, -1);
+            scene.add(leftWall);
+
+            // Right wall
+            const rightWall = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 0.2), wallMat);
+            rightWall.position.set(4, 2, -1);
+            scene.add(rightWall);
+
+            // Window Glass
+            const glassMat = new THREE.MeshPhysicalMaterial({ color: 0x334433, transparent: true, opacity: 0.2, roughness: 0.2 });
+            windowGlassMesh = new THREE.Mesh(new THREE.PlaneGeometry(6, 2), glassMat);
+            windowGlassMesh.position.set(0, 2, -1.05);
+            scene.add(windowGlassMesh);
+
+            // Left Monitor Object
+            const monitorGeo = new THREE.BoxGeometry(1.4, 1.0, 0.8);
+            const monitorMat = new THREE.MeshStandardMaterial({ color: 0x2a302a });
+            const leftMonitor = new THREE.Mesh(monitorGeo, monitorMat);
+            leftMonitor.position.set(-2.8, 1.4, 0.8);
+            leftMonitor.rotation.y = Math.PI / 6;
+            scene.add(leftMonitor);
+
+            // Right Monitor Object
+            const rightMonitor = new THREE.Mesh(monitorGeo, monitorMat);
+            rightMonitor.position.set(2.8, 1.4, 0.8);
+            rightMonitor.rotation.y = -Math.PI / 6;
+            scene.add(rightMonitor);
+        }
+
+        function buildCityscape() {
+            const bldgMat = new THREE.MeshStandardMaterial({ color: 0x111a11, roughness: 0.9 });
+            for(let i=0; i<30; i++) {
+                const w = 1 + Math.random() * 4;
+                const h = 2 + Math.random() * 12;
+                const d = 1 + Math.random() * 4;
+                const bldg = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bldgMat);
+                bldg.position.set((Math.random() - 0.5) * 40, h/2, -8 - Math.random() * 20);
+                scene.add(bldg);
+            }
+        }
+
+        let citizenArt=null, citizenArtClip=null;
+        function createCitizen(imageName) {
+            const group=createCitizenFallback();
+            if(!citizenArtClip){
+                citizenArtClip=document.createElement('div');
+                citizenArtClip.style.cssText='position:absolute;inset:0;pointer-events:none;overflow:hidden';
+                document.getElementById('canvas-container').append(citizenArtClip);
+                citizenArt=document.createElement('img');citizenArt.id='citizen-art';citizenArt.alt='현재 방문 시민';
+                citizenArt.style.cssText='position:absolute;object-fit:contain;pointer-events:none;image-rendering:auto';
+                citizenArtClip.append(citizenArt);
+            }
+            citizenArt.onload=()=>{group.children.forEach(c=>c.visible=false);citizenArt.style.visibility='visible';};
+            citizenArt.onerror=()=>{citizenArt.style.visibility='hidden';group.children.forEach(c=>c.visible=true);};
+            citizenArt.style.visibility='hidden';citizenArt.src=imageName;
+            return group;
+        }
+        function positionCitizenArt(){
+            if(!citizenArt||!citizenMesh)return;
+            const project=(x,y,z)=>{const v=new THREE.Vector3(x,y,z).project(camera);return [(v.x+1)*innerWidth/2,(1-v.y)*innerHeight/2];};
+            const top=project(citizenMesh.position.x,2.9+citizenMesh.position.y,citizenMesh.position.z);
+            const bottom=project(citizenMesh.position.x,citizenMesh.position.y,citizenMesh.position.z);
+            const height=Math.abs(bottom[1]-top[1]),width=height*(citizenArt.naturalWidth||424)/(citizenArt.naturalHeight||463);
+            citizenArt.style.left=(top[0]-width/2)+'px';citizenArt.style.top=top[1]+'px';citizenArt.style.width=width+'px';citizenArt.style.height=height+'px';
+            const tl=project(-3,3,-1.05),br=project(3,1,-1.05);
+            citizenArtClip.style.clipPath=`inset(${Math.max(0,tl[1])}px ${Math.max(0,innerWidth-br[0])}px ${Math.max(0,innerHeight-br[1])}px ${Math.max(0,tl[0])}px)`;
+        }
+
+        function createCitizenFallback() {
+            const group = new THREE.Group();
+            
+            const archetypes = [
+                { name: '일반 시민', skin: 0xeebb99, shirt: [0x883333, 0x334488, 0x336633], scale: 1, mask: false, hat: false },
+                { name: '방호복 요원', skin: 0xdddd00, shirt: [0xeeeeee, 0xddaa00], scale: 1.05, mask: true, hat: true, maskColor: 0x222222 },
+                { name: '방사능 돌연변이', skin: 0x44aa44, shirt: [0x223322, 0x332222], scale: 1.15, mask: false, hat: false },
+                { name: '부패한 정장', skin: 0xffccaa, shirt: [0x111111, 0x222244], scale: 1, mask: false, hat: false, briefcase: true },
+                { name: '스캐빈저 (수집가)', skin: 0xccaa88, shirt: [0x665544, 0x554433], scale: 0.95, mask: true, hat: true, maskColor: 0x555555 },
+                { name: '거구의 용병', skin: 0xddaa88, shirt: [0x222222, 0x441111], scale: 1.35, mask: false, hat: false },
+                { name: '어린 아이', skin: 0xffccaa, shirt: [0xffaa00, 0x00aaff], scale: 0.7, mask: false, hat: false },
+                { name: '사이보그', skin: 0xaaaaaa, shirt: [0x444455, 0x333333], scale: 1, mask: true, maskColor: 0xaa2222 },
+                { name: '펑크족', skin: 0xeebb99, shirt: [0xcc2222, 0x881188], scale: 1, mask: false, hat: true, hatColor: 0xff00ff },
+                { name: '사이비 신도', skin: 0x888888, shirt: [0x330033, 0x440000], scale: 1.05, mask: false, hat: true, hatColor: 0x330033 }
+            ];
+            
+            const type = archetypes[Math.floor(Math.random() * archetypes.length)];
+            const shirtColor = Array.isArray(type.shirt) ? type.shirt[Math.floor(Math.random() * type.shirt.length)] : type.shirt;
+            
+            const headGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+            const headMat = new THREE.MeshStandardMaterial({ color: type.skin, roughness: 0.6 });
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.position.set(0, 1.8, 0);
+            group.add(head);
+
+            if (type.mask) {
+                const maskGeo = new THREE.BoxGeometry(0.35, 0.25, 0.2);
+                const maskMat = new THREE.MeshStandardMaterial({ color: type.maskColor || 0x222222, roughness: 0.4 });
+                const mask = new THREE.Mesh(maskGeo, maskMat);
+                mask.position.set(0, 1.8, 0.26);
+                group.add(mask);
+            }
+
+            if (type.hat) {
+                const hatGeo = new THREE.BoxGeometry(0.55, 0.15, 0.55);
+                const hatMat = new THREE.MeshStandardMaterial({ color: type.hatColor || shirtColor });
+                const hat = new THREE.Mesh(hatGeo, hatMat);
+                hat.position.set(0, 2.1, 0);
+                group.add(hat);
+            }
+
+            const bodyGeo = new THREE.BoxGeometry(0.8, 1.0, 0.4);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.9 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.set(0, 1.05, 0);
+            group.add(body);
+
+            if (type.briefcase) {
+                const caseGeo = new THREE.BoxGeometry(0.2, 0.4, 0.4);
+                const caseMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+                const briefcase = new THREE.Mesh(caseGeo, caseMat);
+                briefcase.position.set(0.5, 0.8, 0);
+                group.add(briefcase);
+            }
+
+            // 쓰레기 오브젝트 위치 조정 (책상 너머로 보이게 높이 올림)
+            const trashGeo = new THREE.BoxGeometry(0.4, 0.5, 0.4);
+            const trashMat = new THREE.MeshStandardMaterial({ color: 0x66ccff, transparent: true, opacity: 0.8 });
+            const trash = new THREE.Mesh(trashGeo, trashMat);
+            trash.position.set(0, 1.2, 0.45); 
+            group.add(trash);
+
+            group.scale.set(type.scale, type.scale, type.scale);
+            group.position.set(0, 0, -15);
+            return group;
+        }
+
+        function createRainParticles() {
+            const count = 500; const geo = new THREE.BufferGeometry(); const positions = new Float32Array(count * 3);
+            for (let i = 0; i < count * 3; i += 3) {
+                positions[i] = (Math.random() - 0.5) * 15; positions[i + 1] = Math.random() * 10; positions[i + 2] = -2 - Math.random() * 5;
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const mat = new THREE.PointsMaterial({ color: 0x88cc88, size: 0.03, transparent: true, opacity: 0.6 });
+            rainParticles = new THREE.Points(geo, mat); scene.add(rainParticles);
+        }
+
+        function animate3D() {
+            requestAnimationFrame(animate3D);
+            if (rainParticles) {
+                const pos = rainParticles.geometry.attributes.position.array;
+                for (let i = 0; i < pos.length; i += 3) {
+                    pos[i] += 0.05; pos[i + 1] -= 0.2;
+                    if (pos[i + 1] < 0) { pos[i] = (Math.random() - 0.5) * 20; pos[i + 1] = 10; }
+                }
+                rainParticles.geometry.attributes.position.needsUpdate = true;
+            }
+            
+            if (citizenMesh && citizenMesh.position.z > -10 && citizenMesh.position.z < -3) {
+                citizenMesh.position.y = Math.abs(Math.sin(Date.now() * 0.01)) * 0.1;
+            } else if (citizenMesh) {
+                citizenMesh.position.y = 0;
+            }
+
+            renderer.render(scene, camera);positionCitizenArt();
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        /* ----------------------------------------------------
+         * GAME STATE & CAMPAIGN LOGIC
+         * ---------------------------------------------------- */
+        const CURRENT_DATE = '2026-10-26';
+
+        const TRASH_TYPES = [
+            { type: '플라스틱 (PET)', desc: '다 마신 생수 페트병 묶음', baseWeight: 1.0, isFood: false, hasBattery: false },
+            { type: '종이류', desc: '택배 종이 박스 및 폐지', baseWeight: 3.5, isFood: false, hasBattery: false },
+            { type: '음식물 쓰레기', desc: '부패된 음식물 찌꺼기', baseWeight: 2.0, isFood: true, hasBattery: false },
+            { type: '일반 쓰레기 (종량제)', desc: '혼합 생활 폐기물', baseWeight: 5.0, isFood: false, hasBattery: false },
+            { type: '폐건전지/유해물질', desc: '다 쓴 리튬 배터리', baseWeight: 0.5, isFood: false, hasBattery: true }
+        ];
+
+        const CONTAMINATION_STATES = ['깨끗함 (CLEAN)', '오염됨 (DIRTY)', '혼합됨 (MIXED)'];
+
+        const CAMPAIGN_DAYS = [
+            { day: 1, quota: 4, time: 60, ruleText: '오염된(DIRTY) 상태의 쓰레기는 수거를 [거부]하라.', ruleCheck: (doc) => doc.contamination === '오염됨 (DIRTY)' },
+            { day: 2, quota: 5, time: 55, ruleText: '본 수거소는 음식물 쓰레기 취급 불가. 음식물은 무조건 [거부]하라.', ruleCheck: (doc) => doc.isFood },
+            { day: 3, quota: 5, time: 50, ruleText: '배출 신고일이 기한 만료(오늘 이전)인 서류는 [거부]하라.', ruleCheck: (doc) => new Date(doc.date) < new Date(CURRENT_DATE) },
+            { day: 4, quota: 6, time: 50, ruleText: '위조된 인가 도장(구청 인가 아님)은 [거부]하라.', ruleCheck: (doc) => !doc.validSeal },
+            { day: 5, quota: 6, time: 45, ruleText: '폐건전지(유해물질) 배출 적발 시 즉각 수거 [거부]하라.', ruleCheck: (doc) => doc.hasBattery },
+            { day: 6, quota: 7, time: 45, ruleText: '복합 단속: 오염된 쓰레기 및 음식물 쓰레기를 모두 [거부]하라.', ruleCheck: (doc) => doc.contamination === '오염됨 (DIRTY)' || doc.isFood },
+            { day: 7, quota: 7, time: 40, ruleText: '단속 강화: 10kg 초과 과적 일반쓰레기는 [거부]하라.', ruleCheck: (doc) => doc.weight > 10.0 && doc.type.includes('일반') },
+            { day: 8, quota: 8, time: 40, ruleText: '불법 뇌물 횡행. 규정(음식물, 건전지 금지)을 철저히 준수하라.', ruleCheck: (doc) => doc.isFood || doc.hasBattery },
+            { day: 9, quota: 8, time: 35, ruleText: '긴급 조치: 위조 도장 및 오염된(DIRTY) 쓰레기 즉각 [거부].', ruleCheck: (doc) => !doc.validSeal || doc.contamination === '오염됨 (DIRTY)' },
+            { day: 10, quota: 10, time: 30, ruleText: '최종일: 오염/음식물/기한만료/위조/유해물질 전면 엄격 단속!', ruleCheck: (doc) => doc.contamination === '오염됨 (DIRTY)' || doc.isFood || new Date(doc.date) < new Date(CURRENT_DATE) || !doc.validSeal || doc.hasBattery }
+        ];
+
+        let gameState = {
+            dayIndex: 0, money: 0, processedToday: 0, timeLeft: 60,
+            timerInterval: null, currentDoc: null, scanned: false, bribeTaken: false,
+            upgrades: { fastScanner: false, extraTime: 0 }
+        };
+
+        const ui = {
+            dayDisplay: document.getElementById('day-display'), quotaTag: document.getElementById('quota-tag'), quotaBar: document.getElementById('quota-bar'),
+            moneyDisplay: document.getElementById('money-display'), timerDisplay: document.getElementById('timer-display'), ruleNotice: document.getElementById('rule-notice'),
+            statusMsg: document.getElementById('status-message'), scannerScreen: document.getElementById('scanner-screen'), docOverlay: document.getElementById('document-overlay'),
+            modalScreen: document.getElementById('modal-screen'), modalPanel: document.getElementById('modal-panel'), modalTitle: document.getElementById('modal-title'), 
+            modalSub: document.getElementById('modal-subtitle'), modalBody: document.getElementById('modal-body'), modalMainBtn: document.getElementById('modal-main-btn'), 
+            shopSection: document.getElementById('shop-section'), bribeContainer: document.getElementById('bribe-container'), bribeAmount: document.getElementById('bribe-amount'),
+            btnScan: document.getElementById('btn-scan'), btnApprove: document.getElementById('stamp-approve-btn'), btnDeny: document.getElementById('stamp-deny-btn'),
+            btnTakeBribe: document.getElementById('btn-take-bribe'), btnBuyScanner: document.getElementById('buy-scanner-upg'), btnBuyFilter: document.getElementById('buy-filter-upg')
+        };
+
+        function startDay(dayIdx) {
+            gameState.dayIndex = dayIdx;
+            const dayData = CAMPAIGN_DAYS[dayIdx];
+            gameState.processedToday = 0;
+            gameState.timeLeft = dayData.time + gameState.upgrades.extraTime;
+
+            ui.dayDisplay.textContent = `DAY ${String(dayIdx + 1).padStart(2, '0')}`;
+            ui.ruleNotice.textContent = dayData.ruleText;
+            updateHUD();
+
+            ui.modalScreen.classList.add('hidden'); ui.shopSection.classList.add('hidden');
+
+            if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+            gameState.timerInterval = setInterval(tickTimer, 1000);
+
+            spawnNextCitizen();
+        }
+
+        function tickTimer() {
+            gameState.timeLeft--;
+            const mins = Math.floor(gameState.timeLeft / 60); const secs = gameState.timeLeft % 60;
+            ui.timerDisplay.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            if (gameState.timeLeft <= 0) { clearInterval(gameState.timerInterval); finishDay(false); }
+        }
+
+        function updateHUD() {
+            const dayData = CAMPAIGN_DAYS[gameState.dayIndex];
+            ui.quotaTag.textContent = `목표: ${gameState.processedToday}/${dayData.quota}`;
+            ui.quotaBar.style.width = `${Math.min(100, (gameState.processedToday / dayData.quota) * 100)}%`;
+            ui.moneyDisplay.textContent = `$ ${gameState.money}`;
+        }
+
+        function spawnNextCitizen() {
+            audio.playPaperRustle();
+            gameState.scanned = false; gameState.bribeTaken = false;
+            ui.docOverlay.classList.add('hidden'); ui.bribeContainer.classList.add('hidden');
+            ui.bribeContainer.classList.remove('opacity-40', 'pointer-events-none');
+            ui.scannerScreen.innerHTML = `<div class="text-emerald-600">[시스템] 시민이 접근 중입니다... 대기하십시오.</div>`;
+
+            // 시민이 오기 전까지 모든 버튼 비활성화 (반투명 처리 및 클릭 방지)
+            ui.btnScan.disabled = true; ui.btnScan.classList.add('opacity-50', 'pointer-events-none');
+            ui.btnApprove.disabled = true; ui.btnApprove.classList.add('opacity-50', 'pointer-events-none');
+            ui.btnDeny.disabled = true; ui.btnDeny.classList.add('opacity-50', 'pointer-events-none');
+
+            if (citizenMesh) { scene.remove(citizenMesh); }
+            
+            const randomImgNum = String(Math.floor(Math.random() * 8) + 1).padStart(2, '0');
+            citizenMesh = createCitizen(`image${randomImgNum}.png`);
+            scene.add(citizenMesh);
+
+            const trash = TRASH_TYPES[Math.floor(Math.random() * TRASH_TYPES.length)];
+            const isInvalidDate = Math.random() < 0.3;
+            const isFakeSeal = Math.random() < 0.25;
+            const hasBribe = Math.random() < 0.35;
+            const contamination = CONTAMINATION_STATES[Math.floor(Math.random() * CONTAMINATION_STATES.length)];
+            
+
+
+            const dateObj = new Date(CURRENT_DATE);
+            if (isInvalidDate) dateObj.setDate(dateObj.getDate() - Math.floor(Math.random() * 10 + 1));
+            else dateObj.setDate(dateObj.getDate() + Math.floor(Math.random() * 5));
+
+            gameState.currentDoc = {
+                id: `WST-${Math.floor(1000 + Math.random() * 9000)}`,
+                citizenId: `CTZ-${Math.floor(100 + Math.random() * 900)}`,
+                date: dateObj.toISOString().split('T')[0],
+                weight: parseFloat((trash.baseWeight + Math.random() * 4).toFixed(1)),
+                type: trash.type,
+                desc: trash.desc,
+                contamination: contamination,
+                isFood: trash.isFood,
+                hasBattery: trash.hasBattery,
+                validSeal: !isFakeSeal,
+                bribeValue: Math.floor(10 + Math.random() * 20),
+                imageName: `image${randomImgNum}.png`,
+                imagePlaceholder: `https://placehold.co/80x80/064e3b/34d399?text=IMG+${randomImgNum}`
+            };
+
+            const walkIn = setInterval(() => {
+                citizenMesh.position.z += 0.4;
+                if (citizenMesh.position.z >= -3.5) {
+                    citizenMesh.position.z = -3.5;
+                    clearInterval(walkIn);
+                    
+                    // 시민이 책상 앞에 도착하면 버튼 활성화
+                    ui.btnScan.disabled = false; ui.btnScan.classList.remove('opacity-50', 'pointer-events-none');
+                    ui.btnApprove.disabled = false; ui.btnApprove.classList.remove('opacity-50', 'pointer-events-none');
+                    ui.btnDeny.disabled = false; ui.btnDeny.classList.remove('opacity-50', 'pointer-events-none');
+                    ui.scannerScreen.innerHTML = `<div class="text-emerald-600">[시스템] 시민이 다가왔습니다. 스캔을 실행하십시오.</div>`;
+
+                    if (hasBribe) {
+                        ui.bribeAmount.textContent = `+$${gameState.currentDoc.bribeValue}`;
+                        ui.bribeContainer.classList.remove('hidden'); ui.bribeContainer.classList.add('flex');
+                    }
+                }
+            }, 30);
+
+            document.getElementById('doc-id').textContent = gameState.currentDoc.id;
+            document.getElementById('doc-citizen-id').textContent = gameState.currentDoc.citizenId;
+            document.getElementById('doc-date').textContent = gameState.currentDoc.date;
+            document.getElementById('doc-weight').textContent = `${gameState.currentDoc.weight} kg`;
+            document.getElementById('doc-type').textContent = gameState.currentDoc.type;
+            document.getElementById('doc-desc').textContent = gameState.currentDoc.desc;
+            
+            const contamTag = document.getElementById('doc-contamination-tag');
+            contamTag.textContent = gameState.currentDoc.contamination;
+            contamTag.className = gameState.currentDoc.contamination === '오염됨 (DIRTY)' ? 'font-black text-sm text-red-600 animate-pulse' : 'font-bold text-sm text-emerald-800';
+
+            const sealTag = document.getElementById('doc-seal');
+            sealTag.innerHTML = gameState.currentDoc.validSeal ? '구청<br>인가' : '위조<br>의심';
+            sealTag.className = gameState.currentDoc.validSeal ? 
+                'w-10 h-10 border-2 border-emerald-800 rounded-full flex items-center justify-center text-[10px] font-bold text-emerald-900 text-center leading-tight' : 
+                'w-10 h-10 border-2 border-red-800 rounded-full flex items-center justify-center text-[10px] font-bold text-red-700 text-center leading-tight rotate-12';
+
+            document.getElementById('doc-stamp-mark').classList.remove('stamped');
+        }
+
+        ui.btnScan.addEventListener('click', () => {
+            audio.init(); audio.playBeep(900, 'square', 0.1);
+            ui.docOverlay.classList.remove('hidden'); gameState.scanned = true;
+
+            const speed = gameState.upgrades.fastScanner ? 200 : 500;
+            ui.scannerScreen.innerHTML = `<div class="text-amber-400 font-bold">[스캔 중...] 신고서 정밀 분석 중</div>`;
+
+            setTimeout(() => {
+                const doc = gameState.currentDoc;
+                ui.scannerScreen.innerHTML = `
+                    <div class="flex gap-2 mb-1">
+                        <img src="${doc.imageName}" onerror="this.onerror=null; this.style.visibility='hidden'" class="w-12 h-12 sm:w-16 sm:h-16 border border-emerald-700 rounded object-contain shrink-0" alt="Citizen Photo">
+                        <div class="flex flex-col justify-center gap-0.5">
+                            <div class="text-emerald-400 font-bold">> 시민 ID: ${doc.citizenId}</div>
+                            <div>> 종류: ${doc.type} | 중량: ${doc.weight} kg</div>
+                        </div>
+                    </div>
+                    <div>> 상태: ${doc.validSeal ? '구청 인가됨' : '⚠️ 도장 불일치 (위조)'}</div>
+                    <div class="${doc.contamination === '오염됨 (DIRTY)' ? 'text-red-400 font-bold' : 'text-emerald-500'}">> 오염도: ${doc.contamination}</div>
+                `;
+                audio.playBeep(1200, 'sine', 0.15);
+            }, speed);
+        });
+
+        ui.btnTakeBribe.addEventListener('click', () => {
+            if (gameState.bribeTaken) return;
+            audio.init(); audio.playCashSound();
+            gameState.bribeTaken = true; gameState.money += gameState.currentDoc.bribeValue;
+            updateHUD();
+            ui.bribeContainer.classList.add('opacity-40', 'pointer-events-none');
+            ui.statusMsg.textContent = '눈감아주기 완료 (뒷돈 수수)';
+        });
+
+        function stampDocument(approved) {
+            // 중복 클릭 및 시민이 퇴장하는 동안 조작 방지
+            ui.btnScan.disabled = true; ui.btnScan.classList.add('opacity-50', 'pointer-events-none');
+            ui.btnApprove.disabled = true; ui.btnApprove.classList.add('opacity-50', 'pointer-events-none');
+            ui.btnDeny.disabled = true; ui.btnDeny.classList.add('opacity-50', 'pointer-events-none');
+            ui.bribeContainer.classList.add('opacity-40', 'pointer-events-none');
+
+            audio.init(); audio.playStampThump();
+            const stampMark = document.getElementById('doc-stamp-mark');
+            stampMark.textContent = approved ? '수거 승인' : '수거 거부';
+            stampMark.className = approved ? 
+                'stamp-mark stamped absolute right-6 top-10 border-4 border-emerald-700 text-emerald-800 px-4 py-1.5 text-2xl font-black font-mono rounded tracking-widest pointer-events-none z-10' :
+                'stamp-mark stamped absolute right-6 top-10 border-4 border-red-700 text-red-800 px-4 py-1.5 text-2xl font-black font-mono rounded tracking-widest pointer-events-none z-10';
+
+            setTimeout(() => { 
+                ui.docOverlay.classList.add('hidden'); // 도장이 찍힌 후 바로 신고서를 숨김
+                setTimeout(() => {
+                    evaluateDecision(approved); 
+                }, 300); // 신고서가 완전히 사라진 후 약간의 딜레이를 두고 퇴장 시작
+            }, 450);
+        }
+
+        ui.btnApprove.addEventListener('click', () => stampDocument(true));
+        ui.btnDeny.addEventListener('click', () => stampDocument(false));
+
+        function evaluateDecision(playerApproved) {
+            const dayRule = CAMPAIGN_DAYS[gameState.dayIndex];
+            const shouldReject = dayRule.ruleCheck(gameState.currentDoc);
+
+            let correct = (playerApproved && !shouldReject) || (!playerApproved && shouldReject);
+
+            if (correct) { EcoFX.notify('good',playerApproved?'규정에 맞는 자원 반입 승인 → 처리 실적 +1, 수당 +10':'부적합 반입 차단 → 처리 실적 +1, 수당 +10');
+                gameState.money += 10; gameState.processedToday++;
+                ui.statusMsg.textContent = '✅ 올바른 처리 (+ $10)';
+                ui.statusMsg.className = 'text-xs text-emerald-400 font-mono mt-1 h-4';
+            } else {
+                gameState.money = Math.max(0, gameState.money - 15);
+ EcoFX.notify("bad","잘못된 판정 → 벌금 15. 오늘의 기준과 스캐너 결과를 비교하세요.");
+                audio.playSiren();
+                ui.statusMsg.textContent = '❌ 규정 위반! 벌금 부과 (- $15)';
+                ui.statusMsg.className = 'text-xs text-red-400 font-mono mt-1 h-4 font-bold animate-pulse';
+            }
+
+            updateHUD();
+
+            // 퇴장 시 오른쪽(이동 방향)을 바라보도록 90도 회전
+            if (citizenMesh) citizenMesh.rotation.y = Math.PI / 2;
+
+            const walkOut = setInterval(() => {
+                if(citizenMesh) citizenMesh.position.x += 0.3;
+                if (citizenMesh && citizenMesh.position.x >= 15) {
+                    clearInterval(walkOut);
+                    checkDayCompletion();
+                }
+            }, 30);
+        }
+
+        function checkDayCompletion() {
+            const dayData = CAMPAIGN_DAYS[gameState.dayIndex];
+            if (gameState.processedToday >= dayData.quota) {
+                clearInterval(gameState.timerInterval); finishDay(true);
+            } else {
+                spawnNextCitizen();
+            }
+        }
+
+        function finishDay(success) { EcoFX.notify(success?'win':'bad',success?'오늘의 처리 목표 달성. 다음 날 규정을 다시 확인하세요.':'오늘의 목표 미달. 규정과 스캐너를 확인하고 재도전하세요.');
+            ui.modalScreen.classList.remove('hidden');
+
+            if (success) {
+                ui.shopSection.classList.remove('hidden');
+                
+                // 성공 시 UI 색상 초기화
+                ui.modalPanel.className = "bg-zinc-900 border-2 border-emerald-600/80 rounded-xl max-w-lg w-full p-6 text-slate-100 shadow-2xl flex flex-col gap-4 transition-colors duration-300";
+                ui.modalTitle.className = "text-2xl font-black text-emerald-400 green-glow font-crt";
+                ui.modalMainBtn.className = "w-full py-3 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-emerald-950 font-black rounded-lg text-base tracking-wider transition cursor-pointer shadow-lg mt-2";
+                
+                audio.playCashSound();
+                ui.modalTitle.textContent = `DAY ${gameState.dayIndex + 1} 근무 완료`;
+                ui.modalSub.textContent = '오늘의 수거장 일과를 완료했습니다.';
+                ui.modalBody.innerHTML = `
+                    <p class="text-emerald-300 font-bold">수고하셨습니다. 일일 할당량을 달성했습니다!</p>
+                    <p>현재 보유 자금: <strong class="text-yellow-400">$${gameState.money}</strong></p>
+                `;
+                
+                if (gameState.dayIndex + 1 < CAMPAIGN_DAYS.length) {
+                    ui.modalMainBtn.textContent = '다음 날 근무 시작'; ui.modalMainBtn.onclick = () => startDay(gameState.dayIndex + 1);
+                } else {
+                    // 10일차 클리어 해피엔딩 연출 (황금색 테마)
+                    ui.shopSection.classList.add('hidden');
+                    ui.modalPanel.className = "bg-zinc-900 border-2 border-yellow-500 rounded-xl max-w-lg w-full p-6 text-slate-100 shadow-2xl flex flex-col gap-4 transition-colors duration-300";
+                    ui.modalTitle.className = "text-3xl font-black text-yellow-400 amber-glow font-crt animate-pulse";
+                    ui.modalMainBtn.className = "w-full py-3 bg-yellow-500 hover:bg-yellow-400 active:bg-yellow-600 text-yellow-950 font-black rounded-lg text-base tracking-wider transition cursor-pointer shadow-lg mt-2";
+
+                    ui.modalTitle.textContent = '🎉 스모그 시티의 영웅 (캠페인 클리어)';
+                    ui.modalSub.textContent = '스모그 시티 환경 관리국 본부 - 특별 승진 통보';
+                    ui.modalBody.innerHTML = `
+                        <div class="bg-yellow-950/30 p-4 border border-yellow-700/50 rounded flex flex-col gap-3">
+                            <p class="text-yellow-300 font-bold text-lg">"기적적인 오염도 감소! 당신의 헌신에 감사드립니다."</p>
+                            <p class="text-zinc-200 text-sm leading-relaxed">10일간의 완벽하고 철저한 분리수거 업무 덕분에 제3구역의 환경이 눈에 띄게 개선되었습니다.</p>
+                            <p class="text-zinc-200 text-sm leading-relaxed">당신의 원칙주의적 성과를 높이 평가하여, 환경 관리국 본부의 <strong>'총괄 수석 관리관'</strong>으로 특별 승진을 명합니다. 이제 매연 가득한 거리를 벗어나, 맑은 공기가 나오는 쾌적한 본부 VIP실에서 스모그 시티의 녹색 미래를 지휘하십시오!</p>
+                            <p class="text-emerald-400 text-sm mt-2 border-t border-yellow-900/50 pt-2 font-bold">
+                                최종 보유 자산: $${gameState.money} <br>
+                                <span class="text-xs text-zinc-400 font-normal">(이 돈은 새 펜트하우스로 이사하는 데 유용하게 쓰일 것입니다!)</span>
+                            </p>
+                        </div>
+                    `;
+                    ui.modalMainBtn.textContent = '영광스러운 은퇴 (처음부터 다시 플레이)'; 
+                    ui.modalMainBtn.onclick = () => {
+                        gameState.money = 0;
+                        gameState.upgrades = { fastScanner: false, extraTime: 0 };
+                        ui.btnBuyScanner.classList.remove('opacity-40', 'pointer-events-none');
+                        ui.btnBuyScanner.querySelector('.text-amber-400').textContent = '$50';
+                        startDay(0);
+                    };
+                }
+            } else {
+                ui.shopSection.classList.add('hidden'); // 해고 화면에서는 상점을 감춤
+                
+                // 해고 (실패) 시 UI 연출 (빨간색 경고)
+                ui.modalPanel.className = "bg-zinc-950 border-2 border-red-700 rounded-xl max-w-lg w-full p-6 text-slate-100 shadow-2xl flex flex-col gap-4 transition-colors duration-300";
+                ui.modalTitle.className = "text-3xl font-black text-red-500 red-glow font-crt animate-pulse";
+                ui.modalMainBtn.className = "w-full py-3 bg-red-800 hover:bg-red-700 active:bg-red-900 text-red-100 font-black rounded-lg text-base tracking-wider transition cursor-pointer shadow-lg mt-2";
+                
+                audio.playSiren();
+                ui.modalTitle.textContent = `해고 통보 (GAME OVER)`;
+                ui.modalSub.textContent = '스모그 시티 환경 관리국';
+                ui.modalBody.innerHTML = `
+                    <div class="bg-red-950/40 p-4 border border-red-800 rounded flex flex-col gap-2">
+                        <p class="text-red-400 font-bold text-lg">"귀하는 일일 할당량 미달로 즉시 해고되었습니다."</p>
+                        <p class="text-zinc-300 text-sm">시간 내에 주어진 시민의 폐기물을 처리하지 못한 무능한 직원은 우리 스모그 시티에 필요 없습니다.</p>
+                        <p class="text-zinc-400 text-sm mt-2 border-t border-red-900 pt-2">지급받은 배급표와 관리자 신분증을 반납하십시오. 이제 당신도 이 오염된 거리로 쫓겨나 길거리의 쓰레기를 줍는 신세가 될 것입니다...</p>
+                    </div>
+                `;
+                
+                ui.modalMainBtn.textContent = '새로운 일자리 구하기 (처음부터 다시 시작)'; 
+                ui.modalMainBtn.onclick = () => {
+                    // 게임 초기화
+                    gameState.money = 0;
+                    gameState.upgrades = { fastScanner: false, extraTime: 0 };
+                    
+                    // 상점 버튼 초기화
+                    ui.btnBuyScanner.classList.remove('opacity-40', 'pointer-events-none');
+                    ui.btnBuyScanner.querySelector('.text-amber-400').textContent = '$50';
+                    
+                    // 모달 스타일 복구
+                    ui.modalPanel.className = "bg-zinc-900 border-2 border-emerald-600/80 rounded-xl max-w-lg w-full p-6 text-slate-100 shadow-2xl flex flex-col gap-4 transition-colors duration-300";
+                    ui.modalTitle.className = "text-2xl font-black text-emerald-400 green-glow font-crt";
+                    ui.modalMainBtn.className = "w-full py-3 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-emerald-950 font-black rounded-lg text-base tracking-wider transition cursor-pointer shadow-lg mt-2";
+                    
+                    startDay(0); 
+                };
+            }
+        }
+
+        ui.btnBuyScanner.addEventListener('click', () => {
+            if (gameState.money >= 50 && !gameState.upgrades.fastScanner) {
+                audio.playCashSound(); gameState.money -= 50; gameState.upgrades.fastScanner = true;
+                ui.btnBuyScanner.classList.add('opacity-40', 'pointer-events-none');
+                ui.btnBuyScanner.querySelector('.text-amber-400').textContent = '구매 완료'; updateHUD();
+            }
+        });
+
+        ui.btnBuyFilter.addEventListener('click', () => {
+            if (gameState.money >= 40) {
+                audio.playCashSound(); gameState.money -= 40; gameState.upgrades.extraTime += 15; updateHUD();
+            }
+        });
+
+        window.onload = () => {
+            init3D(); animate3D();
+            ui.modalMainBtn.onclick = () => { audio.init(); startDay(0); };
+        };
+    </script>
+<script>
+EcoFX.mount({title:"오염 혼입 막기",goal:"서류·오염 상태 확인 → 승인/거부 → 올바른 처리 실적",note:"",read:()=>({label:'올바른 처리 '+gameState.processedToday+' · 기록',progress:gameState.processedToday/(CAMPAIGN_DAYS[gameState.dayIndex]?.quota||1)*100,detail:'오늘 올바른 처리 '+gameState.processedToday+'건 · 수당 '+gameState.money+'. 반입을 거부한 자원도 적절한 별도 처리가 필요합니다.'}),actions:[]});
+</script>
+</body>
+</html>

@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta name="referrer" content="no-referrer">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>탄소 타이쿤 (CARBON TYCOON)</title>
+    <link rel="stylesheet" href="vendor/tailwind.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+        
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #111; overflow: hidden; user-select: none;
+        }
+
+        /* Asset Classes with Fallbacks */
+        .asset-bg-title { background: url('이미지 에셋/da67fc3c-d0dc-4ff5-8579-70dbc0880717.jpg') center/cover, linear-gradient(#2d3748, #1a202c); }
+        .asset-bg-map { background: url('이미지 에셋/da67fc3c-d0dc-4ff5-8579-70dbc0880717.jpg') center/cover, #4ade80; }
+        .asset-panel-money { background:  rgba(30,40,50,0.9); }
+        .asset-dialog { background:  rgba(20,30,40,0.95); }
+        .asset-modal { background:  rgba(40,50,60,0.95); }
+        
+        /* Buttons */
+        .btn-asset {
+            background-size: 100% 100%; background-position: center; background-repeat: no-repeat;
+            cursor: pointer; transition: transform 0.1s; display: inline-block;
+            border: none; background-color: transparent;
+        }
+        .btn-asset:active { transform: scale(0.95); }
+        
+        /* Buttons fallback styles (if images fail) */
+        .btn-fallback { background: #4b5563; border: 2px solid #9ca3af; border-radius: 8px; color: white; padding: 10px 20px; font-weight: bold; }
+        .btn-start { background-image: none; }
+        .btn-setting { background-image: none; }
+        .btn-exit { background-image: none; }
+        .btn-upgrade { background-image: none; }
+        .btn-demolish { background-image: none; }
+        .btn-confirm { background-image: none; }
+        .btn-cancel { background-image: none; }
+
+        /* Carbon Bar UI */
+        .carbon-bar-wrapper { position: relative; width: 300px; height: 30px; }
+        .carbon-bar-empty { 
+            position: absolute; inset: 0; 
+            background:  #333; 
+            border-radius: 15px; overflow: hidden;
+        }
+        .carbon-bar-fill {
+            position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
+            background:  linear-gradient(90deg, #facc15, #ef4444);
+            transition: width 0.5s;
+        }
+
+        /* Map Grid overlay */
+        .grid-container {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+            width: 80%; max-width: 900px; height: 60%; position: absolute;
+            top: 50%; left: 50%; transform: translate(-50%, -40%);
+        }
+        .slot {
+            background: rgba(255,255,255,0.1); border: 2px dashed rgba(255,255,255,0.5);
+            border-radius: 10px; cursor: pointer; position: relative;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .slot:hover { background: rgba(255,255,255,0.3); }
+        .slot img { width: 80%; height: 80%; object-fit: contain; pointer-events: none; }
+        .slot.tut-highlight { border-color: #fbbf24; animation: pulse-border 1s infinite; background: rgba(251,191,36,0.2); }
+        
+        @keyframes pulse-border { 0% { box-shadow: 0 0 0 0 rgba(251,191,36, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(251,191,36, 0); } 100% { box-shadow: 0 0 0 0 rgba(251,191,36, 0); } }
+
+        /* Toolbar */
+        .toolbar {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 8px; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 16px;
+        }
+        .tool-icon {
+            width: 60px; height: 60px; background-size: cover; background-position: center;
+            border-radius: 10px; cursor: pointer; border: 2px solid transparent; transition: 0.1s;
+        }
+        .tool-icon { display:flex; align-items:center; justify-content:center; color:white; text-align:center; font-size:12px; }
+        .slot { font-size:40px; }
+        .tool-icon.selected { border-color: #fbbf24; box-shadow: 0 0 10px #fbbf24; }
+        .tool-icon.locked { filter: grayscale(100%) brightness(50%); cursor: not-allowed; }
+
+        /* Modals */
+        .overlay {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.7); z-index: 100;
+            display: none; align-items: center; justify-content: center;
+        }
+        .overlay.active { display: flex; }
+
+        /* Dialog specific styling */
+        .dialog-container {
+            position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%);
+            width: 90%; max-width: 800px; padding: 20px 30px;
+            color: white; border: 2px solid #555; border-radius: 12px;
+            display: flex; flex-direction: column; z-index: 110;
+        }
+        .dialog-speaker { font-size: 1.2rem; font-weight: 900; color: #fbbf24; margin-bottom: 8px; }
+        .dialog-text { font-size: 1rem; line-height: 1.5; min-height: 50px; }
+        
+        .hidden { display: none !important; }
+    </style>
+<style>.hidden { display: none !important; }</style>
+<script src="eco-feedback.js"></script>
+<style id="final-layout">@media(max-width:700px){#screen-game>div:first-child{flex-wrap:wrap;gap:6px;padding:8px}.carbon-bar-wrapper{width:150px}.toolbar{gap:3px;padding:6px;bottom:48px;max-width:calc(100vw - 16px)}.tool-icon{width:40px;height:46px;font-size:10px}.grid-container{height:53%;top:46%}.dialog-container{box-sizing:border-box;bottom:110px;padding:12px}.overlay>div{max-width:94vw;box-sizing:border-box}}</style><style>.submitted-building{display:inline-block;width:58px;height:66px;background-image:url('이미지 에셋/3e407c85-95f5-41be-988c-107034f899b4.jpg');background-repeat:no-repeat;image-rendering:auto}.tool-icon>span{display:flex;flex-direction:column;align-items:center}.tool-icon .submitted-building{zoom:.55}.grid-slot .submitted-building{pointer-events:none}.submitted-building.coal{background-position:-4px -104px}.submitted-building.oil{background-position:-69px -104px}.submitted-building.cement{background-position:-138px -104px}.submitted-building.steel{background-position:-204px -104px}.submitted-building.solar{background-position:-271px -104px}.submitted-building.wind{background-position:-335px -104px}.submitted-building.forest{background-position:-393px -104px}.submitted-building.bus{background-position:-454px -104px}@media(max-width:700px){.tool-icon .submitted-building{zoom:.4}}</style></head>
+<body>
+
+<div id="app" class="relative w-full h-full">
+
+    <!-- Title Screen -->
+    <div id="screen-title" class="absolute inset-0 asset-bg-title flex flex-col items-center justify-center z-50">
+        <h1 class="text-6xl text-white font-black mb-8">탄소 타이쿤</h1>
+        <div class="flex flex-col gap-4 w-64">
+            <button class="btn-asset btn-start btn-fallback w-full h-16" onclick="startGame()">시작</button>
+            <button class="btn-asset btn-setting btn-fallback w-full h-16" onclick="showModal('modal-settings')">설정</button>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="screen-game" class="absolute inset-0 asset-bg-map hidden">
+        <!-- Top UI -->
+        <div class="absolute top-4 left-4 flex gap-4 z-20 w-full max-w-4xl px-4">
+            <div class="asset-panel-money flex items-center px-4 py-2 rounded-xl text-white font-bold border border-gray-600 gap-2 min-w-[150px]">
+                
+                <span>💰</span> <span id="ui-money">800</span>원
+            </div>
+            
+            <div class="flex-1 flex items-center gap-2">
+                <div class="carbon-bar-wrapper shadow-lg border-2 border-gray-700 rounded-full">
+                    <div class="carbon-bar-empty"></div>
+                    <div id="ui-carbon-bar" class="carbon-bar-fill"></div>
+                </div>
+                <span id="ui-carbon-text" class="text-white font-bold text-lg drop-shadow-md">0%</span>
+            </div>
+
+            <div class="bg-gray-800 border border-gray-600 px-4 py-2 rounded-xl text-white font-bold flex items-center">
+                <span>📅 <span id="ui-day">1</span>/50일</span>
+            </div>
+            
+            <button class="btn-asset btn-setting btn-fallback w-12 h-12" onclick="showModal('modal-settings')">⚙️</button>
+        </div>
+
+        <!-- Grid -->
+        <div id="grid" class="grid-container z-10"></div>
+
+        <!-- Toolbar -->
+        <div class="toolbar z-20">
+            <!-- Carbon -->
+            <div class="flex gap-2 pr-4 border-r border-gray-500">
+                <div id="tool-coal" class="tool-icon" style="background-image: none; background-color: #555;" onclick="selectTool('coal')"><span><i class="submitted-building coal" aria-hidden="true"></i>석탄</span></div>
+                <div id="tool-oil" class="tool-icon" style="background-image: none; background-color: #555;" onclick="selectTool('oil')"><span><i class="submitted-building oil" aria-hidden="true"></i>석유</span></div>
+                <div id="tool-cement" class="tool-icon" style="background-image: none; background-color: #555;" onclick="selectTool('cement')"><span><i class="submitted-building cement" aria-hidden="true"></i>시멘트</span></div>
+                <div id="tool-steel" class="tool-icon" style="background-image: none; background-color: #555;" onclick="selectTool('steel')"><span><i class="submitted-building steel" aria-hidden="true"></i>철강</span></div>
+            </div>
+            <!-- Eco -->
+            <div class="flex gap-2 pl-2">
+                <div id="tool-solar" class="tool-icon locked" style="background-image: none; background-color: #555;" onclick="selectTool('solar')"><span><i class="submitted-building solar" aria-hidden="true"></i>태양광</span></div>
+                <div id="tool-wind" class="tool-icon locked" style="background-image: none; background-color: #555;" onclick="selectTool('wind')"><span><i class="submitted-building wind" aria-hidden="true"></i>풍력</span></div>
+                <div id="tool-forest" class="tool-icon locked" style="background-image: none; background-color: #555;" onclick="selectTool('forest')"><span><i class="submitted-building forest" aria-hidden="true"></i>숲</span></div>
+                <div id="tool-bus" class="tool-icon locked" style="background-image: none; background-color: #555;" onclick="selectTool('bus')"><span><i class="submitted-building bus" aria-hidden="true"></i>버스</span></div>
+            </div>
+        </div>
+        
+        <!-- Build Info -->
+        <div id="build-info" class="absolute bottom-[100px] left-1/2 transform -translate-x-1/2 bg-gray-900 border border-gray-500 p-3 rounded-lg text-white text-sm hidden z-20 shadow-xl w-64 text-center">
+            <h3 id="b-name" class="font-bold text-yellow-300 border-b border-gray-600 pb-1 mb-1">건물 이름</h3>
+            <div class="grid grid-cols-2 gap-1 text-xs text-left px-2">
+                <div>비용: <span id="b-cost" class="text-red-300"></span></div>
+                <div>수익: <span id="b-rev" class="text-green-300"></span></div>
+                <div>유지: <span id="b-maint" class="text-red-300"></span></div>
+                <div>탄소: <span id="b-carbon"></span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cutscene / Dialog Box -->
+    <div id="modal-dialog" class="overlay" style="background: rgba(0,0,0,0.5); align-items: flex-end;">
+        <div class="asset-dialog dialog-container cursor-pointer" onclick="nextDialog()">
+            <div id="dialog-speaker" class="dialog-speaker">???</div>
+            <div id="dialog-text" class="dialog-text">대사 내용</div>
+            <div class="absolute bottom-4 right-6 text-xl animate-bounce text-gray-300">▼</div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="modal-settings" class="overlay">
+        <div class="asset-modal w-80 p-6 rounded-xl flex flex-col gap-4 text-white border border-gray-600">
+            <h2 class="text-2xl font-bold text-center border-b border-gray-500 pb-2">설정</h2>
+            <button class="btn-asset btn-confirm btn-fallback w-full h-12" onclick="closeModal('modal-settings')">계속 플레이</button>
+            <button class="btn-asset btn-cancel btn-fallback w-full h-12 bg-red-600" onclick="resetGame()">진행 상황 초기화</button>
+        </div>
+    </div>
+
+    <!-- Action Modal -->
+    <div id="modal-action" class="overlay">
+        <div class="asset-modal w-72 p-6 rounded-xl flex flex-col gap-3 text-white border border-gray-600">
+            <h2 id="action-title" class="text-xl font-bold text-yellow-300 border-b border-gray-500 pb-2">건물 정보</h2>
+            <button class="btn-asset btn-upgrade btn-fallback w-full h-12 bg-blue-600" disabled title="원본에 업그레이드 규칙이 구현되지 않아 비활성화했습니다.">업그레이드 (준비 중)</button>
+            <button class="btn-asset btn-demolish btn-fallback w-full h-12 bg-red-600" onclick="doDemolish()">철거</button>
+            <button class="btn-asset btn-cancel btn-fallback w-full h-10 mt-2" onclick="closeModal('modal-action')">취소</button>
+        </div>
+    </div>
+
+    <!-- Event Modal -->
+    <div id="modal-event" class="overlay">
+        <div class="bg-gray-900 w-80 p-6 rounded-xl flex flex-col gap-3 text-white border-2 border-red-500 text-center relative overflow-hidden">
+            <div id="event-timer" class="absolute top-0 left-0 h-1 bg-red-500 w-full"></div>
+            
+            <h2 id="event-title" class="text-xl font-bold text-red-400 mt-2">사건 발생</h2>
+            <p id="event-desc" class="text-sm">설명</p>
+            <p id="event-hint" class="text-xs text-yellow-300 bg-gray-800 p-2 rounded hidden">대처법</p>
+            <div class="flex gap-2 mt-2">
+                <button id="btn-ev-ok" class="btn-asset btn-confirm btn-fallback flex-1" onclick="resolveEvent(false)">확인</button>
+                <button id="btn-ev-mit" class="btn-asset btn-start btn-fallback flex-1 bg-green-600 hidden" onclick="resolveEvent(true)">대처하기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- End Game Modal -->
+    <div id="modal-end" class="overlay" style="background: black; z-index: 200;">
+        <div class="flex flex-col items-center gap-6">
+            
+            <h1 id="end-title" class="text-4xl text-white font-bold">결과</h1>
+            <button class="btn-asset btn-confirm btn-fallback w-48 h-12 mt-4" onclick="resetGame()">메인으로</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // --- Data Configuration ---
+    const BLD_DATA = {
+        coal: { id: 'coal', type: 'carbon', name: '석탄 화력발전소', cost: 600, rev: 180, dem: 50, carbon: 5, maint: 20 },
+        oil: { id: 'oil', type: 'carbon', name: '석유 정제 공장', cost: 700, rev: 170, dem: 35, carbon: 7, maint: 15 },
+        cement: { id: 'cement', type: 'carbon', name: '시멘트 공장', cost: 500, rev: 130, dem: 20, carbon: 6, maint: 10 },
+        steel: { id: 'steel', type: 'carbon', name: '철강 제철소', cost: 900, rev: 200, dem: 55, carbon: 10, maint: 30 },
+        solar: { id: 'solar', type: 'green', name: '태양광 발전소', cost: 700, rev: 50, dem: 10, carbon: -6, maint: 10 },
+        wind: { id: 'wind', type: 'green', name: '풍력 발전 단지', cost: 800, rev: 40, dem: 8, carbon: -8, maint: 7 },
+        forest: { id: 'forest', type: 'green', name: '도시 숲 조성', cost: 400, rev: 0, dem: 0, carbon: -10, maint: 5 },
+        bus: { id: 'bus', type: 'green', name: '전기버스 확대', cost: 600, rev: 30, dem: 10, carbon: -5, maint: 10 }
+    };
+
+    const BUILD_ICONS = {"coal": "🏭", "oil": "🛢️", "cement": "🧱", "steel": "⚙️", "solar": "☀️", "wind": "🌬️", "forest": "🌳", "bus": "🚌"};
+    // --- Tutorial Dialogues ---
+    const DIALOGUES = {
+        start: [
+            { s: "???(전화)", t: "그래, 다시 한 번 미안하군. 갑작스럽게 도시 사업을 맡던 책임자가 급한 일이 생겨, 자네가 잠시 동안 이 일을 맡게 되었네." },
+            { s: "주인공(플레이어)", t: "알겠습나다만…..어느 정도 있어야할까요?" },
+            { s: "???(전화)", t: "50일 정도. 그 동안은 자네가 좀 맡아두었음 하네." },
+            { s: "주인공(플레이어)", t: "….알겠습니다. 그럼 지금 무엇을 하면 되겠습니까?" },
+            { s: "???(전화)", t: "그래, 지금 이 도시에선 사업 시설이 없어. 그래서 정부에서 이 도시를 지원해주고 있지. 그 지원금을 토대로 사업 시설을 지으면 된다." },
+            { s: "???(전화)", t: "현재는 화력발전소가 효율이 가장 좋은 것 같으니, 그걸 지어보게나.", action: "tut_wait_build" }
+        ],
+        postBuild: [
+            { s: "???(전화)", t: "그래, 이제 수익이 벌리고 있군. 그럼 계속 잘해봐라" },
+            { s: "주인공(플레이어)", t: "알겠습니다.", action: "tut_end_1" }
+        ],
+        ecoUnlock: [
+            { s: "시스템", t: "(따르르르릉, 철컥)" },
+            { s: "주인공(플레이어)", t: "네, 여보세요." },
+            { s: "???(전화)", t: "그래, 잘하고 있다. 근데, 현재 계속되는 탄소 사업 등으로 대기 중 이산화탄소 농도가 증가하고 있다는군. 현재 나라에서 진행 중인 친환경 사업 몇 가지를 알려줄테니, 그것을 설치하여 대기 중 이산화 탄소 농도를 줄여볼세." },
+            { s: "주인공(플레이어)", t: "노력해보도록 하겠습니다." },
+            { s: "???(전화)", t: "그래, 수고해라.", action: "tut_end_eco" }
+        ],
+        heatwave: [
+            { s: "시스템", t: "(따르르르릉, 철컥)" },
+            { s: "주인공(플레이어)", t: "무슨 일이십니까?" },
+            { s: "???(전화)", t: "이런, 현재 폭염이 발생했다 하더군. 이러면 무조건 사업에 영향을 미칠걸세! 시간 안에 빨리 대처를 해야하네. 여기 대처 방법을 각각 써놨으니, 읽고 빠르게 대처하게나." },
+            { s: "주인공(플레이어)", t: "??? 네! 알겠습니다!", action: "tut_trigger_heatwave" }
+        ]
+    };
+
+    // --- State Variables ---
+    let state = {
+        money: 800, carbon: 0, day: 1, totalSec: 0, grid: Array(12).fill(null),
+        tutStep: 0, // 0:Init, 1:WaitCoal, 2:PostCoal, 3:Wait50%, 4:WaitEvent, 5:Done
+        events: []
+    };
+    
+    let loopTimer = null, isPaused = false;
+    let selectedTool = null, targetSlotIdx = null;
+    let activeDialog = [], dialogIdx = 0;
+    let eventTimeout = null, pendingEvent = null;
+
+    // --- Core Functions ---
+    function init() {
+        const saved = localStorage.getItem('carbonSaveData');
+        if (saved) {
+            try { state = JSON.parse(saved); } catch(e) {}
+        }
+        createGrid();
+        updateUI();
+    }
+
+    function startGame() {
+        document.getElementById('screen-title').classList.add('hidden');
+        document.getElementById('screen-game').classList.remove('hidden');
+        
+        if (state.tutStep === 1) {
+            pauseGame(); document.getElementById("slot-0").classList.add("tut-highlight");
+        } else if (state.tutStep === 2) {
+            playDialog(DIALOGUES.postBuild);
+        } else if (state.tutStep === 0) {
+            playDialog(DIALOGUES.start);
+        } else {
+            resumeGame();
+        }
+    }
+
+    function resetGame() {
+        state = { money: 800, carbon: 0, day: 1, totalSec: 0, grid: Array(12).fill(null), tutStep: 0, events: [] };
+        localStorage.removeItem('carbonSaveData');
+        location.reload(); // Refresh to reset cleanly
+    }
+
+    function saveGame() {
+        localStorage.setItem('carbonSaveData', JSON.stringify(state));
+    }
+
+    // --- Game Loop ---
+    function pauseGame() { isPaused = true; }
+    function resumeGame() {
+        isPaused = false;
+        if(loopTimer) clearInterval(loopTimer);
+        loopTimer = setInterval(tick, 1000);
+    }
+
+    function tick() {
+        if(isPaused) return;
+        state.totalSec++;
+        
+        // Day logic
+        if(state.totalSec % 180 === 0) {
+            state.day++;
+            checkEndOfDay();
+        }
+
+        // Income
+        if(state.totalSec % 60 === 0) {
+            state.grid.forEach(b => {
+                if(b) state.money += Math.round(b.rev * (state.totalSec < (state.heatwaveUntil || 0) ? (state.heatwaveMultiplier || 1) : 1));
+            });
+        }
+
+        // Maint
+        state.grid.forEach(b => {
+            if(b && (state.totalSec - b.placedAt) > 0 && (state.totalSec - b.placedAt) % 540 === 0) {
+                state.money -= b.maint;
+            }
+        });
+
+        checkWinLoss();
+        updateUI();
+        if (!document.getElementById('modal-end').classList.contains('active')) saveGame();
+    }
+
+    // --- Win/Loss & Events ---
+    function checkWinLoss() {
+        let totalC = 0;
+        state.grid.forEach(b => { if(b) totalC += b.carbon; });
+        state.carbon = Math.max(0, Math.min(100, totalC));
+
+        if (state.day > 50) return endGame(true);
+        if (state.money <= 0 || state.carbon >= 100) return endGame(false);
+
+        // Tut 4: Eco Unlock
+        if (state.carbon >= 50 && state.tutStep === 3) {
+            state.tutStep = 4;
+            playDialog(DIALOGUES.ecoUnlock);
+        }
+    }
+
+    function checkEndOfDay() {
+        // Tut 5: First Negative Event
+        if (state.carbon >= 85 && state.tutStep === 4) {
+            // Simplified trigger for tutorial
+            state.tutStep = 5;
+            playDialog(DIALOGUES.heatwave);
+        }
+    }
+
+    function endGame(isWin) {
+ EcoFX.notify("action","도시 운영 종료. 탄소·자금 결과를 확인하고 다른 건설 조합으로 재도전하세요.");
+        pauseGame();
+        document.getElementById('modal-end').classList.add('active');
+        document.getElementById('end-title').innerText = isWin ? "SUCCESS (CREDITS)" : "GAME OVER";
+        document.getElementById('end-title').style.color = isWin ? "#4ade80" : "#f87171";
+
+        localStorage.removeItem('carbonSaveData');
+    }
+
+    // --- Dialog System ---
+    function playDialog(dialogArray) {
+        pauseGame();
+        activeDialog = dialogArray;
+        dialogIdx = 0;
+        showModal('modal-dialog');
+        renderDialog();
+    }
+
+    function renderDialog() {
+        if(dialogIdx >= activeDialog.length) {
+            closeModal('modal-dialog');
+            handleDialogAction(activeDialog[dialogIdx-1].action);
+            return;
+        }
+        const d = activeDialog[dialogIdx];
+        document.getElementById('dialog-speaker').innerText = d.s;
+        document.getElementById('dialog-text').innerText = d.t;
+    }
+
+    function nextDialog() {
+        dialogIdx++;
+        renderDialog();
+    }
+
+    function handleDialogAction(action) {
+        if(!action) { resumeGame(); return; }
+        
+        if (action === "tut_wait_build") {
+            state.tutStep = 1;
+            // Highlight empty land 0 (top left)
+            document.getElementById('slot-0').classList.add('tut-highlight');
+            // User must click slot 0 and build coal
+        } else if (action === "tut_end_1") {
+            state.tutStep = 3; // Waiting for 50%
+            resumeGame();
+        } else if (action === "tut_end_eco") {
+            // Unlock eco
+            document.querySelectorAll('.tool-icon.locked').forEach(el => el.classList.remove('locked'));
+            resumeGame();
+        } else if (action === "tut_trigger_heatwave") {
+            triggerEventHeatwave();
+        }
+    }
+
+    // --- Building System ---
+    function createGrid() {
+        const grid = document.getElementById('grid');
+        grid.innerHTML = '';
+        for(let i=0; i<12; i++) {
+            let d = document.createElement('div');
+            d.className = 'slot';
+            d.id = `slot-${i}`;
+            d.onclick = () => onSlotClick(i);
+            grid.appendChild(d);
+        }
+    }
+
+    function selectTool(id) {
+        if(id && BLD_DATA[id].type === 'green' && state.tutStep < 4) return; // Locked
+
+        selectedTool = id;
+        document.querySelectorAll('.tool-icon').forEach(el => el.classList.remove('selected'));
+        
+        const info = document.getElementById('build-info');
+        if(id) {
+            document.getElementById(`tool-${id}`).classList.add('selected');
+            let d = BLD_DATA[id];
+            document.getElementById('b-name').innerText = d.name;
+            document.getElementById('b-cost').innerText = d.cost;
+            document.getElementById('b-rev').innerText = d.rev;
+            document.getElementById('b-maint').innerText = d.maint;
+            document.getElementById('b-carbon').innerText = d.carbon > 0 ? '+'+d.carbon : d.carbon;
+            info.classList.remove('hidden');
+        } else {
+            info.classList.add('hidden');
+        }
+    }
+
+    function onSlotClick(idx) {
+        const slotData = state.grid[idx];
+        
+        // Tutorial constraints
+        if (state.tutStep === 1) {
+            if (idx !== 0 || selectedTool !== 'coal') return; 
+            document.getElementById('slot-0').classList.remove('tut-highlight');
+        }
+
+        if (slotData) {
+            targetSlotIdx = idx;
+            document.getElementById('action-title').innerText = BLD_DATA[slotData.id].name;
+            showModal('modal-action');
+        } else if (selectedTool) {
+            let cost = BLD_DATA[selectedTool].cost;
+            if (state.money >= cost) {
+                state.money -= cost;
+                state.grid[idx] = { id: selectedTool, level: 1, placedAt: state.totalSec, ...BLD_DATA[selectedTool] };
+                selectTool(null);
+                updateUI();
+                saveGame();
+                checkWinLoss();
+
+                if (state.tutStep === 1) {
+                    state.tutStep = 2;
+                    playDialog(DIALOGUES.postBuild);
+                }
+            }
+        }
+    }
+
+    function doUpgrade() {} // Omitted for tutorial focus, structure remains.
+    function doDemolish() {
+ EcoFX.notify("action","철거는 생산과 배출을 함께 바꿉니다. 탄소와 자금을 확인하세요.");
+        if(targetSlotIdx !== null) {
+            let b = state.grid[targetSlotIdx];
+            if (state.money >= b.dem) {
+                state.money -= b.dem;
+                state.grid[targetSlotIdx] = null;
+                checkWinLoss(); updateUI(); saveGame();
+                closeModal('modal-action');
+            }
+        }
+    }
+
+    // --- Heatwave Event ---
+    function triggerEventHeatwave() {
+        pendingEvent = { cost: 250 };
+
+        document.getElementById('event-title').innerText = '폭염';
+        document.getElementById('event-desc').innerText = '폭염이 찾아와 2일간 수익이 15% 감소합니다.';
+        document.getElementById('event-hint').innerText = '250원 지불 시 수익 5%만 감소 (5초 내)';
+        document.getElementById('event-hint').classList.remove('hidden');
+        document.getElementById('btn-ev-mit').classList.remove('hidden');
+        document.getElementById('btn-ev-mit').innerText = '250원 대처하기';
+        
+        showModal('modal-event');
+        
+        const bar = document.getElementById('event-timer');
+        bar.style.transition = 'none'; bar.style.width = '100%';
+        setTimeout(() => { bar.style.transition = 'width 5s linear'; bar.style.width = '0%'; }, 50);
+
+        eventTimeout = setTimeout(() => resolveEvent(false), 5000);
+    }
+
+    function resolveEvent(mitigated) {
+        if (!pendingEvent) return;
+        if(eventTimeout) clearTimeout(eventTimeout);
+        mitigated = Boolean(mitigated && state.money >= pendingEvent.cost);
+        if(mitigated) {
+            state.money -= pendingEvent.cost;
+        }
+        state.heatwaveMultiplier = mitigated && state.money >= 0 ? 0.95 : 0.85;
+        state.heatwaveUntil = state.totalSec + 360;
+ EcoFX.notify("bad","폭염 대응 선택 반영: 일정 시간 수익이 감소합니다. 비용과 감소 폭을 비교하세요.");
+        pendingEvent = null;
+        updateUI(); saveGame();
+        closeModal('modal-event');
+        resumeGame();
+    }
+
+    // --- UI Update ---
+    function updateUI() {
+        document.getElementById('ui-money').innerText = state.money;
+        document.getElementById('ui-day').innerText = state.day;
+        document.getElementById('ui-carbon-text').innerText = state.carbon + '%';
+        document.getElementById('ui-carbon-bar').style.width = state.carbon + '%';
+
+        if(state.tutStep >= 4) {
+            document.querySelectorAll('.tool-icon.locked').forEach(el => el.classList.remove('locked'));
+        }
+
+        const gridEl = document.getElementById('grid');
+        state.grid.forEach((b, i) => {
+            const slot = gridEl.children[i];
+            if (b) {
+                slot.innerHTML = '<i class="submitted-building '+b.id+'" role="img" aria-label="'+BLD_DATA[b.id].name+'"></i>'; 
+                slot.style.borderStyle = 'solid';
+            } else {
+                slot.innerHTML = '';
+                slot.style.borderStyle = 'dashed';
+            }
+        });
+    }
+
+    // --- Utils ---
+    function showModal(id) { document.getElementById(id).classList.add('active'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+    window.onload = init;
+</script>
+<script>
+EcoFX.mount({title:"탄소와 도시 운영",goal:"발전·산업·흡수원을 조합해 수익과 탄소를 함께 관리하세요.",note:"",read:()=>({label:'탄소 '+Math.round(state.carbon)+' · 기록',progress:Math.max(0,100-state.carbon),detail:'현재 탄소 '+Math.round(state.carbon)+' · 자금 '+Math.round(state.money)+' · '+state.day+'일. 건설·철거 후 두 수치를 비교하세요.'}),actions:[]});
+</script>
+</body>
+</html>
